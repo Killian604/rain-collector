@@ -1,12 +1,13 @@
 """
 
 """
+import json
 from typing import Iterable, List, Tuple, Union
 import argparse
 import json
 import requests
 
-DEFAULT_MAX_TOKENS = 1024
+DEFAULT_MAX_TOKENS = 8192
 
 
 # General
@@ -42,7 +43,7 @@ def _parse_models_resp_for_model_names(r: requests.Response) -> List[str]:
 
     :param r:
     :return:
-    Example return JSON #1:
+    Example response JSON #1:
         {'object': 'list',
          'data': [
             {'id': './NousResearch_Hermes-3-Llama-3.1-8B/',
@@ -77,7 +78,7 @@ def _parse_models_resp_for_model_names(r: requests.Response) -> List[str]:
 
 def get_models(host: str, port: Union[str, int]):
     """
-
+    Ask a vLLM server which models are available. Returns a list of strings of available models.
     :param host:
         E.g. 'localhost'
         E.g. '127.0.0.1'
@@ -91,16 +92,27 @@ def get_models(host: str, port: Union[str, int]):
 # Unsorted
 def post_http_prompt_request(
         prompt: str,
-        modelname: str,
+        model: str,
         api_url: str,
         temperature: float = 0.0,
         n: int = 1,
         stream: bool = False,
-        max_tokens=1024,
+        max_tokens=DEFAULT_MAX_TOKENS,
 ) -> requests.Response:
+    """
+    Send POST request to vLLM for a single prompt. Return the Response object.
+    :param prompt:
+    :param model:
+    :param api_url:
+    :param temperature:
+    :param n:
+    :param stream:
+    :param max_tokens:
+    :return:
+    """
     headers = {"User-Agent": "Test Client"}
     pload = {
-        'model': modelname,
+        'model': model,
         "prompt": prompt,
         "n": n,
         "use_beam_search": n > 1,
@@ -124,24 +136,30 @@ def post_chat_request(
         n: int = 1,
         stream: bool = False,
         max_tokens=DEFAULT_MAX_TOKENS,
+        debug: bool = False,
 ) -> requests.Response:
     """
 
     :param chat:
         E.g. [{'role':'system', 'content': 'You are an AI assistant.'}, {'role':'user', 'content': 'What is the largest city on Earth?'}]
-
-    :param model:
-    :param api_url:
-    :param n:
-    :param stream:
+        Dev note: sometimes extraneous keys can be present. This function will automatically clean the contents
+        of the chat without mutation.
+    :param model: Name of model name to use at vLLM server
+    :param api_url: API to vLLM server
+    :param n: number of beam responses
+    :param stream: (bool) Return streaming response
     :param max_tokens:
     :return:
     """
-    print(f'Post chat request called')
+
+    cleanedchat = [{k:v for k,v in x.items() if k in {'role', 'content'}} for x in chat]
+    if debug:
+        print(f'Post chat request called')
+        print(f'{cleanedchat=}')
     headers = {"User-Agent": "Test Client"}
     pload = {
         'model': model,
-        "messages": chat,
+        "messages": cleanedchat,
         "n": n,
         "use_beam_search": n > 1,
         "temperature": 0.0,
@@ -158,15 +176,8 @@ def post_chat_request(
     return response
 
 
-# def get_streaming_response(response: requests.Response) -> Iterable[List[str]]:
-#     for chunk in response.iter_lines(chunk_size=8192, decode_unicode=False, delimiter=b"\0"):
-#         if chunk:
-#             data = json.loads(chunk.decode("utf-8"))
-#             output = data['choices']
-#             yield output
+def parse_prompt_response_for_choices(response: requests.Response) -> List[str]:
 
-
-def prompt_response(response: requests.Response) -> List[str]:
     if response.status_code == 200:
         data = json.loads(response.content)
         print(f'{data=}')
@@ -180,7 +191,7 @@ def parse_chat_response(response) -> Tuple[str, str]:
     """
 
     :param response:
-    :return:
+    :return: tuple of ('content', 'role')
 
     Example JSON:
         {'id': 'chat-523be9a6378047fea1e4123f14b9ab8c',
@@ -194,33 +205,32 @@ def parse_chat_response(response) -> Tuple[str, str]:
         'logprobs': None,
         'finish_reason': 'length',
         'stop_reason': None}],
-    'usage': {'prompt_tokens': 28, 'total_tokens': 35, 'completion_tokens': 7},
-    'prompt_logprobs': None}
+        'usage': {'prompt_tokens': 28, 'total_tokens': 35, 'completion_tokens': 7},
+        'prompt_logprobs': None}
     """
     j = response.json()
     return j['choices'][0]['message']['content'], j['choices'][0]['message']['role']
 
-def parse_chat_response_stream(resp, debug=True) -> Tuple[str, str]:
+
+def parse_chat_response_stream(r: requests.Response, debug=False) -> Tuple[str, str]:
     """
 
-    :param resp:
+    :param r:
+    :param debug:
     :return:
     """
     role = 'UNKNOWN'
     final_out = ''
-    print(f'parse_chat_response_stream CALLED! {resp=}')
-    for i, chunk in enumerate(resp.iter_lines(
-            chunk_size=8192,
-            decode_unicode=False,
-            # delimiter=b"data:",
-            delimiter=b"data:",
-    )):
+    if debug:
+        print(f'parse_chat_response_stream CALLED! {r=}')
+    for i, chunk in enumerate(r.iter_lines(chunk_size=8192, decode_unicode=False, delimiter=b"data:",)):
         # print(f'{i=}')
         chunk_decoded: str = chunk.decode('utf-8')
         if chunk_decoded:
+
+            chunk_decoded_dataremoved = chunk_decoded.strip()
             if debug:
-                print(f'{i=} {chunk_decoded=}')
-            chunk_decoded_dataremoved = chunk_decoded.strip()  # .removeprefix('data: ')
+                print(f'{i=} {chunk_decoded_dataremoved=}')
             """Example chunk after JSON parse: {"id":"chat-281fefb9951f44e3a24635359ff6b4c7","object":"chat.completion.chunk","created":1726770376,"model":"/home/killfm/projects/text-generation-webui/models/NousResearch_Hermes-3-Llama-3.1-8B/","choices":[{"index":0,"delta":{"content":" area"},"logprobs":null,"finish_reason":null}]}'"""
             if '[DONE]' in chunk_decoded_dataremoved or '<|end_of_text|>' in chunk_decoded:
                 print(f'DONE detected or EOT')
@@ -238,21 +248,19 @@ def parse_chat_response_stream(resp, debug=True) -> Tuple[str, str]:
                 # raise
             if debug:
                 print(f'{data=}')
+            if 'choices' not in data:
+
+                raise ValueError(f'Not "choices" available: {data=} \n\n {json.dumps(data, indent=4)}')
             output = data['choices'][0]['delta']['content']
             role = data['choices'][0]['delta'].get('role') or role
             # role = data['choices'][0]['delta']['role']
             final_out += output
             if debug:
                 print(f'{output=}')
-            # breakpoint()
-            # print('---Done one---')
             yield output, role
-            # if '[DONE]' in chunk:
-            #     raise StopIteration
 
 
-def http_bot(prompt, llm_uri, modelname, n=1, max_tokens=500,stream=True):
-    final_text = ''
+def http_bot(prompt: str, llm_uri: str, modelname, n=1, max_tokens=500,stream=True):
     print(f'{prompt=}')
     headers = {"User-Agent": "vLLM Client"}
     pload = {
@@ -267,45 +275,24 @@ def http_bot(prompt, llm_uri, modelname, n=1, max_tokens=500,stream=True):
     }
     response = requests.post(llm_uri, headers=headers, json=pload, stream=True, )
     return parse_chat_response_stream(response)
-    for i, chunk in enumerate(response.iter_lines(
-            chunk_size=8192,
-            decode_unicode=False,
-            delimiter=b"data:",
-    )):
-        chunk_decoded: str = chunk.decode('utf-8')
-        if chunk_decoded:
-            # if not chunk_decoded.startswith('data: '):
-            #     raise Exception(f'Unexpected format for {chunk_decoded=}')
-            print(f'{i=} {chunk_decoded=}')
-            chunk_decoded_dataremoved = chunk_decoded.strip()  # .removeprefix('data: ')
-            if '[DONE]' in chunk_decoded_dataremoved or '<|end_of_text|>' in chunk_decoded:
-                return
-
-            try:
-                data: dict = json.loads(chunk_decoded_dataremoved)
-            except BaseException as e:
-                err = f'Err: {repr(e)=} // {chunk_decoded_dataremoved=}'
-                print(err)
-                # breakpoint()
-            #     continue
-                # raise StopIteration
-                # print(f'{chunk_decoded=}')
-                # raise
-            # print(f'{data=}')
-            output = data['choices'][0]['text']
-            final_text += output
-            print(f'{output=}')
-            # print('---Done one---')
-            yield final_text
-            # if '[DONE]' in chunk:
-            #     raise StopIteration
 
 
 # Primary funcs
 
+def yield_streaming_response(chat: List[dict], model, api_url, stream: bool, max_tokens=DEFAULT_MAX_TOKENS) -> Tuple[str, str]:
+    """
 
-def yield_resp(chat, model, api_url, stream: bool, max_tokens=DEFAULT_MAX_TOKENS):
-    print(f'yiueldresp cllaed')
+    :param chat:
+        E.g. [{'role': 'assistant', 'content': 'I am a helpful AI.'}, {'role': 'user', 'content': 'What is the largest city on Earth?'}]
+    :param model: E.g. 'Llama3.1'
+    :param api_url: E.g. 'localhost:8000'
+    :param stream: True
+    :param max_tokens: E.g. 1024
+    :return:
+        E.g. ('Tokyo, Japan', 'assistant')
+    """
+    if not isinstance(chat, list):
+        raise TypeError(f'Bad type for {type(chat)=} / {chat=}')
     response = post_chat_request(
         chat,
         model,
@@ -314,6 +301,7 @@ def yield_resp(chat, model, api_url, stream: bool, max_tokens=DEFAULT_MAX_TOKENS
         max_tokens=max_tokens,
     )
     if stream:
+
         for c in parse_chat_response_stream(response):
             yield c
     else:
