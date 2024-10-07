@@ -42,10 +42,23 @@ cookbook/ is for short scripts that show you how to do stuff
 
 ```
 
+
+# TTS
+- `import nltk;nltk.download('averaged_perceptron_tagger_eng')`
+
+
 # Notes
 
 - Loading a GGUF model requires GGUF to be installed: `pip install gguf`
 
+- https://speech.fish.audio/inference/#http-api-inference
+- https://github.com/fishaudio/fish-speech
+  - Good for voice cloning
+- `MeloTTS` has decent defaults but fish is better for faster cloning
+- `tacotron2` TTS isn't as strong as other competitors
+- `parler` sounds good, but bails out of the script during long blocks of text
+  - https://huggingface.co/parler-tts/parler-tts-large-v1
+- 
 
 # FAQ
 
@@ -66,6 +79,11 @@ _
 https://github.com/meta-llama/llama-recipes/tree/main
 
 
+# Wikipedia
+
+## Get 
+- https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-all-titles-in-ns0.gz
+- `gunzip enwiki-latest-all-titles-in-ns0.gz`
 
 
  ---
@@ -75,4 +93,4 @@ https://github.com/meta-llama/llama-recipes/tree/main
 
 ---
 
-
+$HUGGINGFACE_HUB_CACHE
