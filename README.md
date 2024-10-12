@@ -51,14 +51,23 @@ cookbook/ is for short scripts that show you how to do stuff
 
 - Loading a GGUF model requires GGUF to be installed: `pip install gguf`
 
-- https://speech.fish.audio/inference/#http-api-inference
-- https://github.com/fishaudio/fish-speech
-  - Good for voice cloning
+
+# Voice
+- `fish-speech`: easy voice cloning
+  - https://speech.fish.audio/inference/#http-api-inference
+  - https://github.com/fishaudio/fish-speech
 - `MeloTTS` has decent defaults but fish is better for faster cloning
 - `tacotron2` TTS isn't as strong as other competitors
 - `parler` sounds good, but bails out of the script during long blocks of text
   - https://huggingface.co/parler-tts/parler-tts-large-v1
-- 
+- `Coqui/XTTS`: Not worth pursuing since development has been discontinued. 
+  - It's shutting down: https://x.com/_josh_meyer_/status/1742522906041635166
+- `StyleTTS2`: Incredibly hard to implement fast inference to prove concept
+
+
+- To ASR a 4.5h podcast with Whisper Large, it takes about 30 min
+  - So it takes about 1 min of runtime per 9 min of audio
+
 
 # FAQ
 
