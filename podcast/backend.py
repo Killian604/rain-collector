@@ -2,7 +2,7 @@
 
 """
 import PyPDF2
-from typing import Optional
+from typing import List, Optional
 import os
 import torch
 
@@ -12,7 +12,7 @@ import os
 
 
 
-def create_word_bounded_chunks(text, target_chunk_size):
+def create_word_bounded_chunks(text, target_chunk_size) -> List[str]:
     """
     Split text into chunks at word boundaries close to the target chunk size.
     """
@@ -102,6 +102,35 @@ def get_pdf_metadata(file_path: str) -> Optional[dict]:
         return None
 
 
+def process_chunk(text_chunk, chunk_num, SYS_PROMPT, tokenizer, model, device) -> str:
+    """Process a chunk of text and return both input and output for verification"""
+    conversation = [
+        {"role": "system", "content": SYS_PROMPT},
+        {"role": "user", "content": text_chunk},
+    ]
+
+    prompt = tokenizer.apply_chat_template(conversation, tokenize=False)
+    inputs = tokenizer(prompt, return_tensors="pt").to(device)
+
+    with torch.no_grad():
+        output = model.generate(
+            **inputs,
+            temperature=0.7,
+            top_p=0.9,
+            max_new_tokens=512
+        )
+
+    processed_text = tokenizer.decode(output[0], skip_special_tokens=True)[len(prompt):].strip()
+
+    # Print chunk information for monitoring
+    # print(f"\n{'='*40} Chunk {chunk_num} {'='*40}")
+    print(f"INPUT TEXT:\n{text_chunk[:500]}...")  # Show first 500 chars of input
+    print(f"\nPROCESSED TEXT:\n{processed_text[:500]}...")  # Show first 500 chars of output
+    print(f"{'=' * 90}\n")
+
+    return processed_text
+
+
 def validate_pdf(file_path: str) -> bool:
     if not os.path.exists(file_path):
         print(f"Error: File not found at path: {file_path}")
@@ -110,3 +139,4 @@ def validate_pdf(file_path: str) -> bool:
         print("Error: File is not a PDF")
         return False
     return True
+

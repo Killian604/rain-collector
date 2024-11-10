@@ -3,6 +3,11 @@ Step 1: Pre-process PDF: Use Llama-3.2-1B-Instruct to pre-process the PDF and sa
 
 
 """
+from accelerate import Accelerator
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import warnings
+from tqdm import tqdm
+warnings.filterwarnings('ignore')
 import PyPDF2
 from typing import Optional
 import os
@@ -12,7 +17,8 @@ import warnings
 
 from podcast import  backend
 
-DEFAULT_MODEL = "meta-llama/Llama-3.2-1B-Instruct"
+# DEFAULT_MODEL = os.path.join(os.environ['MYMODELS'], 'Llama-3.2-1B-Instruct')
+DEFAULT_MODEL = os.path.join('../../projects/text-generation-webui/models', 'Llama-3.2-1B-Instruct')
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 SYS_PROMPT = """
@@ -38,7 +44,7 @@ warnings.filterwarnings('ignore')
 
 
 
-def main(pdf_path: str):
+def main(pdf_path: str, intermediate_file_path, output_file_path):
     assert os.path.isfile(pdfpath), f'fnf: {pdfpath=}'
     # Extract metadata first
     print("Extracting metadata...")
@@ -69,10 +75,67 @@ def main(pdf_path: str):
             f.write(extracted_text)
         print(f"\nExtracted text has been saved to {output_file}")
 
+    accelerator = Accelerator()
+    model = AutoModelForCausalLM.from_pretrained(
+        DEFAULT_MODEL,
+        torch_dtype=torch.bfloat16,
+        use_safetensors=True,
+        device_map=device,
+    )
+    tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL, use_safetensors=True)
+    model, tokenizer = accelerator.prepare(model, tokenizer)
+
+
+    # Read the file
+    INPUT_FILE = "./extracted_text.txt"  # Replace with your file path
+    CHUNK_SIZE = 1000  # Adjust chunk size if needed
+
+    with open(INPUT_FILE, 'r', encoding='utf-8') as file:
+        text = file.read()
+
+
+    # chunks = backend.create_word_bounded_chunks(text, CHUNK_SIZE, SYS_PROMPT, tokenizer, model, device)
+    chunks = backend.create_word_bounded_chunks(text, CHUNK_SIZE)
+
+
+    # Calculate number of chunks
+    num_chunks = (len(text) + CHUNK_SIZE - 1) // CHUNK_SIZE
+
+    # Cell 6: Process the file with ordered output
+    # Create output file name
+
+    processed_text = ''
+
+    with open(output_file, 'w', encoding='utf-8') as out_file:
+        for chunk_num, chunk in enumerate(tqdm(chunks, desc="Processing chunks")):
+            # Process chunk and append to complete text
+            processed_chunk = backend.process_chunk(chunk, chunk_num, SYS_PROMPT, tokenizer, model, device)
+            processed_text += processed_chunk + "\n"
+
+            # Write chunk immediately to file
+            out_file.write(processed_chunk + "\n")
+            out_file.flush()
+    num_chunks = len(chunks)
+
+    print(f"\nProcessing complete!")
+    print(f"Input file: {INPUT_FILE}")
+    print(f"Output file: {output_file}")
+    print(f"Total chunks processed: {num_chunks}")
+
+    # Preview the beginning and end of the complete processed text
+    print("\nPreview of final processed text:")
+    print("\nBEGINNING:")
+    print(processed_text[:1000])
+    print("\n...\n\nEND:")
+    print(processed_text[-1000:])
     pass
 
 if __name__ == '__main__':
     pdfpath = '/home/killfm/Downloads/Mathematics_of_finance.pdf'
+    intermediate_file_path = 'extracted_text.txt'
+    output_file_path = output_file = f"clean_{os.path.basename(pdfpath)}"
     main(
         pdfpath,
+        intermediate_file_path,
+        output_file_path,
     )
