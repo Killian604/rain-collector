@@ -56,13 +56,14 @@ cookbook/ is for short scripts that show you how to do stuff
 - `fish-speech`: easy voice cloning
   - https://speech.fish.audio/inference/#http-api-inference
   - https://github.com/fishaudio/fish-speech
-- `MeloTTS` has decent defaults but fish is better for faster cloning
+- `MeloTTS` has decent default voices, but fish is better for fast cloning
 - `tacotron2` TTS isn't as strong as other competitors
 - `parler` sounds good, but bails out of the script during long blocks of text
   - https://huggingface.co/parler-tts/parler-tts-large-v1
 - `Coqui/XTTS`: Not worth pursuing since development has been discontinued. 
   - It's shutting down: https://x.com/_josh_meyer_/status/1742522906041635166
 - `StyleTTS2`: Incredibly hard to implement fast inference to prove concept
+- `GPT-SoVITS`: Extremely hacky repo. Not enough bonuses to use this over fish-aduio, so dropping usage. Written in Chinese first.
 
 
 - To ASR a 4.5h podcast with Whisper Large, it takes about 30 min
@@ -94,6 +95,7 @@ https://github.com/meta-llama/llama-recipes/tree/main
 - https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-all-titles-in-ns0.gz
 - `gunzip enwiki-latest-all-titles-in-ns0.gz`
 
+e
 
  ---
 
@@ -103,3 +105,19 @@ https://github.com/meta-llama/llama-recipes/tree/main
 ---
 
 $HUGGINGFACE_HUB_CACHE
+gradio vllm_gradio_chat_stream.py --watch-dirs ./backend/
+
+
+# Evaluations and MMLU leaderboard
+https://github.com/huggingface/evaluation-guidebook
+https://github.com/huggingface/lighteval/wiki/Use-VLLM-as-backend
+Source: https://github.com/huggingface/blog/blob/main/open-llm-leaderboard-mmlu.md
+
+-Original MMLU: compare probabilities of possible answers, use highest prob between options as response
+-HELM implementation: expectation is that correct answer will be highest prob, otherwise false
+-AI Harness: comparison of long-form response to long-form answer
+  - Self note: probs are summed (and normalized probably). If unsure or value is 
+  - Docs note: "For numerical stability we gather them by summing the logarithm of the probabilities and we can decide (or not) to compute a normalization in which we divide the sum by the number of tokens to avoid giving too much advantage to longer answers "
+
+# Other resources
+https://github.com/langchain-ai/rag-from-scratch?tab=readme-ov-file
