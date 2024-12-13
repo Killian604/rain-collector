@@ -2,20 +2,21 @@
 
 Dev note: referencing a specific local model is approx. 3x faster on total execution than asking HF to search cache.
 """
+from colorama import init, Fore, Style
 from ply.yacc import token
 from transformers import AutoTokenizer  # from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import os
 import sys
 import time
 # os.environ['USE_FLASH_ATTENTION'] = '1'
-from colorama import init, Fore, Style
+
 
 if __name__ == '__main__':
     start = time.perf_counter()
     init()
 
     # Replace this path with the directory where you have the model files.
-    # model_id = r"meta-llama/Meta-Llama-3.1-8B-Instruct"  # Would check cache
+    # model_id = r"meta-llama/Meta-Llama-3.1-8B-Instruct"  # This phrasing would check cache
     model_id = "/home/killfm/projects/text-generation-webui/models/Meta-Llama-3.1-8B-Instruct"
 
     mytext = 'Default text goes here!'
@@ -26,8 +27,6 @@ if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained(
         model_id,
         device_map='cpu',
-        # use_fast=True,  # use_fast=True is the default
-        # gguf_file=None,
     )
 
     inputtext = mytext if len(sys.argv) <= 1 else ' '.join(sys.argv[1:])
