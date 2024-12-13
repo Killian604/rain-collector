@@ -1,8 +1,8 @@
 """
-A shortcut script to cutting clips of movies
+A shortcut script to cutting clips of movies and audio
 """
-import os
 from moviepy.editor import AudioFileClip, VideoFileClip
+import os
 
 
 def write_clip_audio_to_file(vidfile, outfile):
@@ -18,13 +18,10 @@ def cutclip(infile, outfile, timestart=0, timeend=-1, force=False):
     clip = VideoFileClip(infile)
     if timeend < 0:
         timeend = clip.duration
+    
     subclip = clip.subclip(timestart, timeend)
-
     subclip.write_videofile(outfile)
-
     clip.close()
-
-    return
 
 
 def cutaudio(infile, outfile, timestart=0, timeend=-1, force=False):
@@ -44,7 +41,6 @@ def cutaudio(infile, outfile, timestart=0, timeend=-1, force=False):
         if timeend < 0:
             timeend = clip.duration
         subclip = clip.subclip(timestart, timeend)
-
         subclip.write_audiofile(outfile)
         # clip.close()
     return
@@ -66,13 +62,13 @@ if __name__ == '__main__' and False:
 # Clipping an mp3
 if __name__ == '__main__' and True:
     inputmoviefile = f'/home/killfm/Downloads/Comparing The Voices - Major Motoko Kusanagi (English).mp3'
-    outputmoviefile = f'/home/killfm/Downloads/motoko1.mp3'
-    timestart = 43
-    timeend = 73
+    inputmoviefile = f'/home/killfm/Videos/motoko1.mp3'
+    outputmoviefile = f'/home/killfm/Videos/motoko1_cut1.mp3'
+    timestart = 10
+    timeend = 20
     cutaudio(
         inputmoviefile,
         outputmoviefile,
         timestart=timestart,
         timeend=timeend,
     )
-

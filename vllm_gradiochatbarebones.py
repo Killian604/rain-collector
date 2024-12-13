@@ -1,3 +1,6 @@
+"""
+Demo to show how a gradio chat works
+"""
 import gradio as gr
 
 # Assuming you have a function to get the LLM response
