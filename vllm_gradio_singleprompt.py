@@ -1,3 +1,4 @@
+# Last updated: not working
 from typing import Optional
 import argparse
 
@@ -16,7 +17,7 @@ def build_demo(host, port, model: Optional[str] = None):
         inputbox2 = gr.Textbox(label="Input", value=vllm_util.get_models(host, port)[0])
 
         outputbox = gr.Textbox(label="Output", placeholder="Generated result from the model", lines=5, max_lines=300)
-        inputbox.submit(vllm_util.http_bot, [inputbox, inputbox2], [outputbox])
+        inputbox.submit(vllm_util.yield_streaming_response, [inputbox, inputbox2], [outputbox])
     return demo
 
 

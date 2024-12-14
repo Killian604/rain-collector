@@ -8,14 +8,16 @@ import chromadb
 
 
 # Define the vLLM server URL
-VLLM_SERVER_URL = "http://localhost:8000/v1/chat/completions"  # Update with your actual server URL
 VLLM_SERVER_IP, VLLM_SERVER_PORT = 'localhost', 8000
+VLLM_SERVER_IP, VLLM_SERVER_PORT = '10.0.0.73', 8000
+VLLM_SERVER_URL = f"http://{VLLM_SERVER_IP}:{VLLM_SERVER_PORT}/v1/chat/completions"  # Update with your actual server URL
+# VLLM_SERVER_URL = "http://10.0.0.73:8000/v1/chat/completions"  # Update with your actual server URL
 files_to_examine = ['./vllm_gradio_chat_stream.py', './backend/vllm_util.py']
 
 context = ''
-for file in files_to_examine:
-    with open(file, 'r') as f:
-        context += f"""## CONTENTS OF FILE "{file}" below:\n{f.readlines()}"""
+# for file in files_to_examine:
+#     with open(file, 'r') as f:
+#         context += f"""## CONTENTS OF FILE "{file}" below:\n{f.readlines()}"""
 
 # Init default convo
 convo_history = [
@@ -37,9 +39,11 @@ with gr.Blocks(
         type='messages',
         show_copy_button=True,
     )
-    message_textbox = gr.Textbox()
+    message_textbox = gr.Textbox(
+        label='Textbox -- hit enter to send prompt'
+    )
     clear = gr.Button("Clear")
-    currentmodel = vllm_util.get_models('localhost', 8000)[0]
+    currentmodel = vllm_util.get_models(VLLM_SERVER_IP, VLLM_SERVER_PORT)[0]
 
 
     def update_history_with_user_prompt(user_message: str, history: List[dict]) -> Tuple[str, List[dict]]:

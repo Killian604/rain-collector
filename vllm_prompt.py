@@ -71,18 +71,20 @@ if __name__ == "__main__":
     parser.add_argument("--host", type=str, default="localhost")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--n", type=int, default=1)
-    parser.add_argument("--prompt", type=str, default="San Francisco is a")
+    parser.add_argument("--prompt", type=str, default=None)
     parser.add_argument("--stream", action="store_true", default=False)
     args = parser.parse_args()
     host, port = args.host, args.port
-    prompt = args.prompt
+    max_tokens = 500
+
+    prompt = args.prompt or "San Francisco is a "
+    prompt = 'What are some good TV shows?'
     api_url = f"http://{host}:{port}/v1/completions/"
     n = args.n
     stream = args.stream
     ms = vllm_util.get_models(host, port)
     print(f'{ms=}')
     modelname = vllm_util.get_models(host, port)[0]
-    max_tokens = 7
     print(f"Prompt: {prompt!r}\n", flush=True)
     response = vllm_util.post_http_prompt_request(
         prompt,
@@ -102,10 +104,12 @@ if __name__ == "__main__":
                 num_printed_lines += 1
                 print(f"Beam candidate {i}: {line!r}", flush=True)
     else:
-        output = vllm_util.prompt_response(response)
+        output = vllm_util.parse_prompt_response_for_choices(response)
         print(f'{output=}')
         text = output[0]['text']
         print(f'{text=}')
         if n > 1:
             for i, line in enumerate(output):
                 print(f"Beam candidate {i}: {line!r}", flush=True)
+
+    breakpoint()

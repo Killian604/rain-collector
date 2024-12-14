@@ -233,7 +233,7 @@ def parse_chat_response_stream(r: requests.Response, debug=False) -> Tuple[str, 
                 print(f'{i=} {chunk_decoded_dataremoved=}')
             """Example chunk after JSON parse: {"id":"chat-281fefb9951f44e3a24635359ff6b4c7","object":"chat.completion.chunk","created":1726770376,"model":"/home/killfm/projects/text-generation-webui/models/NousResearch_Hermes-3-Llama-3.1-8B/","choices":[{"index":0,"delta":{"content":" area"},"logprobs":null,"finish_reason":null}]}'"""
             if '[DONE]' in chunk_decoded_dataremoved or '<|end_of_text|>' in chunk_decoded:
-                print(f'DONE detected or EOT')
+                # print(f'DONE detected or EOT')
                 return final_out, role
 
             try:
