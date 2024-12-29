@@ -4,15 +4,17 @@ Barebones vLLM prompter that uses additional context and other fun stuff to test
 import gradio as gr
 from typing import Dict, List, Optional, Tuple
 from backend import vllm_util
+import random
 import chromadb
 
 
 # Define the vLLM server URL
+max_tokens = 7000
 VLLM_SERVER_IP, VLLM_SERVER_PORT = 'localhost', 8000
 VLLM_SERVER_IP, VLLM_SERVER_PORT = '10.0.0.73', 8000
 VLLM_SERVER_URL = f"http://{VLLM_SERVER_IP}:{VLLM_SERVER_PORT}/v1/chat/completions"  # Update with your actual server URL
 # VLLM_SERVER_URL = "http://10.0.0.73:8000/v1/chat/completions"  # Update with your actual server URL
-files_to_examine = ['./vllm_gradio_chat_stream.py', './backend/vllm_util.py']
+files_to_examine = ['./gradio_chat_stream_vllm.py', './backend/vllm_util.py']
 
 context = ''
 # for file in files_to_examine:
@@ -32,17 +34,18 @@ If you have to repeat the code, only show the changed/updated code chunks and no
 with gr.Blocks(
     theme='gradio/monochrome',
     analytics_enabled=False,
+    title='AI chatbot',
 ) as demo:
     chatbot = gr.Chatbot(
         convo_history,
-        height=768,
+        height=512,
         type='messages',
         show_copy_button=True,
     )
     message_textbox = gr.Textbox(
         label='Textbox -- hit enter to send prompt'
     )
-    clear = gr.Button("Clear")
+    btn_clear = gr.Button("Reset")
     currentmodel = vllm_util.get_models(VLLM_SERVER_IP, VLLM_SERVER_PORT)[0]
 
 
@@ -61,12 +64,12 @@ with gr.Blocks(
     def request_llm_response_to_chat_history(chatbot_history_to_send_to_llm: List[dict]) -> List[dict]:
         role = None
         resp = ''
-        for content, response_role in vllm_util.yield_streaming_response(chatbot_history_to_send_to_llm, currentmodel, VLLM_SERVER_URL, True):
+        for content, response_role in vllm_util.yield_streaming_response(chatbot_history_to_send_to_llm, currentmodel, VLLM_SERVER_URL, stream=True, max_tokens=max_tokens):
             resp += content
             role = role or response_role
             yield chatbot_history_to_send_to_llm+[{'role': role, 'content': resp}]
 
     message_textbox.submit(update_history_with_user_prompt, [message_textbox, chatbot], [message_textbox, chatbot], queue=False).then(request_llm_response_to_chat_history, chatbot, chatbot)
-    clear.click(lambda: None, None, chatbot, queue=False)
+    btn_clear.click(lambda: None, None, chatbot, queue=False)
 
 demo.launch()
