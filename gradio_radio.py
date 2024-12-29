@@ -4,7 +4,7 @@ For running radio app
 Usage: `gradio <ThisFileName>`
 """
 from typing import Dict, List, Optional, Tuple
-from backend import gradio_logic, shared, vllm_util
+from backend import gradio_logic, logging_extra as le, shared, vllm_util
 from parler_tts import ParlerTTSForConditionalGeneration
 from transformers import AutoTokenizer
 import chromadb
@@ -87,7 +87,8 @@ def click_generate_tape(prompt: Optional[str] = None, outfilepath: Optional[str]
     convo_history_a.append({'role': 'user', 'content': prompt})
     if debug:
         print(f'{convo_history_a=}')
-    content, _role = vllm_util.generate_response(convo_history_a, shared.CURRENT_ML_MODEL, shared.VLLM_SERVER_URL, max_tokens=MAX_TOKENS, temperature=DEFAULT_TEMP)
+    with le.Timer('Logging VLLM response time'):
+        content, _role = vllm_util.generate_response(convo_history_a, shared.CURRENT_ML_MODEL, shared.VLLM_SERVER_URL, False, max_tokens=MAX_TOKENS, temperature=DEFAULT_TEMP)
     # parler_text = ""
     # for content, _response_role in vllm_util.yield_streaming_response(convo_history_a, shared.CURRENT_ML_MODEL, shared.VLLM_SERVER_URL, max_tokens=MAX_TOKENS, temperature=DEFAULT_TEMP, stream=True):
     #     parler_text += content
@@ -110,12 +111,12 @@ def click_generate_tape(prompt: Optional[str] = None, outfilepath: Optional[str]
         'temperature': 0.7,
 
     }
-
-    generation = model.generate(
-        input_ids=description_ids,
-        prompt_input_ids=prompt_ids,
-        **generation_kwargs
-    )
+    with le.Timer('Logging Parler response generation timing'):
+        generation = model.generate(
+            input_ids=description_ids,
+            prompt_input_ids=prompt_ids,
+            **generation_kwargs
+        )
     audio_arr = generation.cpu().numpy().squeeze()
     sf.write(outfilepath, audio_arr, model.config.sampling_rate)
     print(f'Output written to: {outfilepath}')
