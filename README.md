@@ -8,6 +8,10 @@ Collect your memories and customize your very own personalized AI. Emphasis on p
 
 More instructions TBD
 
+# Usage
+
+`gradio vllm_gradio_chat_stream.py --watch-dirs ./backend/`
+`gradio `
 
 # Folders
 
@@ -56,14 +60,17 @@ cookbook/ is for short scripts that show you how to do stuff
 - `fish-speech`: easy voice cloning
   - https://speech.fish.audio/inference/#http-api-inference
   - https://github.com/fishaudio/fish-speech
-- `MeloTTS` has decent default voices, but fish is better for fast cloning
+- `MeloTTS` has decent default voices, but fish is better for fast cloning. No ability to tune defaults.
 - `tacotron2` TTS isn't as strong as other competitors
 - `parler` sounds good, but bails out of the script during long blocks of text
   - https://huggingface.co/parler-tts/parler-tts-large-v1
 - `Coqui/XTTS`: Not worth pursuing since development has been discontinued. 
   - It's shutting down: https://x.com/_josh_meyer_/status/1742522906041635166
+  - Note: Models are saved to ~/.local/share/tts/...
 - `StyleTTS2`: Incredibly hard to implement fast inference to prove concept
-- `GPT-SoVITS`: Extremely hacky repo. Not enough bonuses to use this over fish-aduio, so dropping usage. Written in Chinese first.
+- `GPT-SoVITS`: Extremely hacky repo. Not enough bonuses to use this over fish-audio, so dropping usage. Written in Chinese first.
+- `suno/bark`: Slow to inference. No voice cloning. Has SOME non-talking attributes like [laughter]
+
 
 
 - To ASR a 4.5h podcast with Whisper Large, it takes about 30 min
