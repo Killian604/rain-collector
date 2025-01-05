@@ -91,10 +91,6 @@ assert all([os.path.isfile(x) for x in wav_ref_audio_files]), f'fnf: {wav_ref_au
 shared.VLLM_SERVER_URL = vllm_util.create_vllm_chat_uri(VLLM_SERVER_IP, VLLM_SERVER_PORT)  # f"http://{VLLM_SERVER_IP}:{VLLM_SERVER_PORT}/v1/chat/completions"  # Update with your actual server URL
 shared.CURRENT_ML_MODEL = vllm_util.get_models(VLLM_SERVER_IP, VLLM_SERVER_PORT)[0]
 
-# Init default convo
-
-
-
 # Pure functions that help with Gradio processing
 def update_history_with_user_prompt(user_message: str, history: List[dict]) -> Tuple[str, List[dict]]:
     """
@@ -187,14 +183,14 @@ def generate_new_caller_tape() -> str:
         return generate_new_caller_tape()
     return tts_text
 
-def generate_reply(chat) -> str:
+def generate_reply_and_store_state(chat) -> str:
     with log.Timer('Logging VLLM response time'):
         content, _role = vllm_util.generate_response(chat, shared.CURRENT_ML_MODEL, shared.VLLM_SERVER_URL, stream=False, max_tokens=MAX_TOKENS, temperature=DEFAULT_TEMP)
     tts_text = re.sub(r'\s+', ' ', content.strip()).replace('\n', ' ')
     return tts_text
 
 
-def render_voice(tts_text: str, speed: float, callerwavpath):
+def render_voice_to_wav_file(tts_text: str, speed: float, callerwavpath):
     # TODO: pull random voice?
     print(f'{callerwavpath=}')
     output_fp_mp3 = os.path.join(shared.repopath, 'output_audio', time.strftime('%y%m%d-%H%M%S') + '.mp3')
@@ -218,7 +214,7 @@ def add_caller_text_to_chatbox(chat, text):
 def add_most_recent_chatbox_reply_to_current_most_recent_state(chatbox):
     return chatbox[-1]['content']
 
-def transcribe(audio: tuple):
+def transcribe_and_save_state(audio: tuple):
     """
 
     :param audio: 2-tuple[sample rate, numpyarray np.int16].
@@ -272,7 +268,7 @@ with gr.Blocks(
             checkbox_show_chat = gr.Checkbox(label="Show Chat", value=True)
             select_voicesource = gr.Radio(choices=['speaker', 'wav'], label='Select source', value='speaker', interactive=True)
             chatbot = gr.Chatbot(shared.convo_history_radio_dialogue.copy(), height=512, type='messages', show_copy_button=True, visible=checkbox_show_chat.value)
-            input_textbox_str = gr.Textbox()
+            input_textbox_str = gr.Textbox(label='Send text reply to caller')
             clear_button = gr.Button("Disconnect Caller")
             pass
         with gr.Column():  # Audio players
@@ -287,30 +283,35 @@ with gr.Blocks(
 
     # Functions
     # Reset chat button
-    clear_button.click(gradio_util.reset_chatbox, None, chatbot, queue=False).then(lambda: None, None, audio_caller)
+    clear_button.click(gradio_util.reset_chatbox, None, chatbot, queue=False) \
+        .then(lambda: None, None, audio_caller)
 
     # Click "New caller" button -> generate new caller
     btn_generate_new_recording.click(set_new_caller, inputs=None, outputs=state_current_caller_wav) \
         .then(gradio_util.reset_chatbox, None, chatbot) \
         .then(generate_new_caller_tape, None, state_most_recent_tts) \
         .then(add_caller_text_to_chatbox, inputs=[chatbot, state_most_recent_tts], outputs=chatbot) \
-        .then(render_voice, inputs=[state_most_recent_tts, slider_voicespeed, state_current_caller_wav], outputs=audio_caller)
+        .then(render_voice_to_wav_file, inputs=[state_most_recent_tts, slider_voicespeed, state_current_caller_wav], outputs=audio_caller)
+
+    # Checkbox: show chat
+    checkbox_show_chat.change(lambda x: gr.update(visible=x), checkbox_show_chat, chatbot)
 
     # Input text into textbox: Force new message via text
     input_textbox_str.submit(update_history_with_user_prompt, [input_textbox_str, chatbot], [input_textbox_str, chatbot], scroll_to_output=True, queue=False) \
-        .then(generate_reply, chatbot, state_most_recent_tts) \
-        .then(add_most_recent_chatbox_reply_to_current_most_recent_state, chatbot, state_most_recent_tts) \
-        .then(render_voice, inputs=[state_most_recent_tts, slider_voicespeed, state_current_caller_wav], outputs=audio_caller)
+        .then(generate_reply_and_store_state, chatbot, state_most_recent_tts) \
+        .then(add_caller_text_to_chatbox, inputs=[chatbot, state_most_recent_tts], outputs=chatbot) \
+        .then(render_voice_to_wav_file, inputs=[state_most_recent_tts, slider_voicespeed, state_current_caller_wav], outputs=audio_caller)
 
     # Pause audio recording: Create audio response from DJ
-    audio_dj.stop_recording(transcribe, inputs=audio_dj, outputs=state_mostrecent_dj_reply) \
+    audio_dj.stop_recording(transcribe_and_save_state, inputs=audio_dj, outputs=state_mostrecent_dj_reply) \
         .then(gradio_util.add_dj_response_to_chat, inputs=[chatbot, state_mostrecent_dj_reply], outputs=chatbot) \
-        .then(generate_reply, chatbot, state_most_recent_tts) \
+        .then(generate_reply_and_store_state, chatbot, state_most_recent_tts) \
         .then(add_caller_text_to_chatbox, inputs=[chatbot, state_most_recent_tts], outputs=chatbot) \
-        .then(render_voice, inputs=[state_most_recent_tts, slider_voicespeed, state_current_caller_wav], outputs=audio_caller)
-    checkbox_show_chat.change(lambda x: gr.update(visible=x), checkbox_show_chat, chatbot)
+        .then(render_voice_to_wav_file, inputs=[state_most_recent_tts, slider_voicespeed, state_current_caller_wav], outputs=audio_caller)
 
+    # On page load: populate stuff? like next personality?
     demo.load(init_page, inputs=None, outputs=None)
+
 
 if __name__ == '__main__':
     demo.launch(
