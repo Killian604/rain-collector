@@ -3,8 +3,15 @@ For running radio app
 
 Usage: `gradio <ThisFileName>`
 """
+import librosa
+# import rccoqui
+# from rccoqui.TTS import tts
+
+from rccoqui.TTS.tts.configs.xtts_config import XttsConfig
+from rccoqui.TTS.tts.models.xtts import Xtts
 from typing import Dict, List, Optional, Tuple
 from backend import gradio_logic, logging_extra as log, shared, vllm_util
+from scipy.io.wavfile import read as read_wav, write as write_wav
 from tempfile import TemporaryDirectory
 import gradio as gr
 import numpy as np
@@ -40,20 +47,41 @@ wav_ref_audio_files = [
 ]
 reference_voice_text = "And just that little bit makes me wild. And so, they can get them, because they're powerful, they're smart, they're neat"
 device = 'cuda'  # "cuda:0" if torch.cuda.is_available() else "cpu"
-default_speech_speed = 2.0
+default_speech_speed = 1.0
 DEFAULT_TEMP = 0.8
 MAX_TOKENS = 2048
 debug = True
 
 if gr.NO_RELOAD:
+    # ['Claribel Dervla', 'Daisy Studious', 'Gracie Wise', 'Tammie Ema', 'Alison Dietlinde', 'Ana Florence', 'Annmarie Nele', 'Asya Anara', 'Brenda Stern', 'Gitta Nikolina', 'Henriette Usha', 'Sofia Hellen', 'Tammy Grit', 'Tanja Adelina', 'Vjollca Johnnie', 'Andrew Chipper', 'Badr Odhiambo', 'Dionisio Schuyler', 'Royston Min', 'Viktor Eka', 'Abrahan Mack', 'Adde Michal', 'Baldur Sanjin', 'Craig Gutsy', 'Damien Black', 'Gilberto Mathias', 'Ilkin Urbano', 'Kazuhiko Atallah', 'Ludvig Milivoj', 'Suad Qasim', 'Torcull Diarmuid', 'Viktor Menelaos', 'Zacharie Aimilios', 'Nova Hogarth', 'Maja Ruoho', 'Uta Obando', 'Lidiya Szekeres', 'Chandra MacFarland', 'Szofi Granger', 'Camilla Holmström', 'Lilya Stainthorpe', 'Zofija Kendrick', 'Narelle Moon', 'Barbora MacLean', 'Alexandra Hisakawa', 'Alma María', 'Rosemary Okafor', 'Ige Behringer', 'Filip Traverse', 'Damjan Chapman', 'Wulf Carlevaro', 'Aaron Dreschner', 'Kumar Dahl', 'Eugenio Mataracı', 'Ferran Simen', 'Xavier Hayasaka', 'Luis Moray', 'Marcos Rudaski']
+    # configlocation = '/home/killfm/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2/config.json'
+    # modellocation = '/home/killfm/.local/share/tts/tts_models--multilingual--multi-dataset--xtts_v2'
+    # config = XttsConfig()
+    # config.load_json(configlocation)
+    # model2 = Xtts.init_from_config(config)
+    # model2.load_checkpoint(config, checkpoint_path=modellocation, eval=True)
+    # model2.cuda()
+    # torch.compile(model2)
+
     model = TTS("tts_models/multilingual/multi-dataset/xtts_v2", gpu=True).to(device)
+    model.eval()
     # model = TTS("tts_models/multilingual/multi-dataset/your_tts").to(device)
     # model = TTS("tts_models/multilingual/multi-dataset/bark").to(device)  # Limited for voice cloning, but interesting to say the least
     # print(f'\n{TTS().list_models()=}\n')
     # model = ParlerTTSForConditionalGeneration.from_pretrained("parler-tts/parler-tts-mini-v1").to(device)
     # tokenizer = AutoTokenizer.from_pretrained("parler-tts/parler-tts-mini-v1")
     torch.compile(model)
-    transcriber = pipeline("automatic-speech-recognition", model="openai/whisper-base.en")
+    transcriber = pipeline("automatic-speech-recognition", model="openai/whisper-base.en", device_map='auto')
+
+    # outputs: dict = model2.synthesize(
+    #     "It took me quite a long time to develop a voice and now that I have it I am not going to be silent.",
+    #     config,
+    #     speaker_wav="/data/TTS-public/_refclips/3.wav",
+    #     gpt_cond_len=3,
+    #     language="en",
+    # )
+    # waveform = outputs['wav']
+
 
 assert os.path.isfile(voice_clone_wav_fp), f'Voice clone file not found: {voice_clone_wav_fp=}'
 assert all([os.path.isfile(x) for x in wav_ref_audio_files]), f'fnf: {wav_ref_audio_files}'
@@ -63,24 +91,37 @@ shared.VLLM_SERVER_URL = vllm_util.create_vllm_chat_uri(VLLM_SERVER_IP, VLLM_SER
 shared.CURRENT_ML_MODEL = vllm_util.get_models(VLLM_SERVER_IP, VLLM_SERVER_PORT)[0]
 
 # Init default convo
+metadata = """
+Current radio station info: 94.5 FM "Yap Radio"
+Current radio show live: Mystery Caller Hour only on Saturday
+"""
+
 convo_history_tape_generation = [
-    {'role': 'system', 'content': """
-You are an AI that generates realistic dialogue in English only. You will be given a character
-and topic, and then your job is to  generate a corresponding response that follows the request.
+    {'role': 'system', 'content': f"""
+You are a character-generating AI for a radio station. You make up radio station callers and their associate dialogue.
+You will be given a character
+and topic, and then your job is to generate a corresponding response that follows the request.
 Some other specifications are:
 - do not reply in all-caps
-- do not include the tone or loudness of the caller in parentheses
-- do not include any metadata. Only reply with the dialogue of the character.
-""".strip().replace('\n', ' ')},
+- do not include the tone or loudness of the caller
+- do not include any non-spoken parts of language (e.g. "(giggles)" or "(In a panicked tone)")
+- do not include any metadata. Only reply with the dialogue of the character
+- No run-on sentences (each sentence must be 400 characters or less)
+- only reply in English. No other languages.
+
+Current station metadata:
+{metadata}
+""".strip()},
     {'role': 'assistant', 'content': 'What character dialogue should I generate? Include the details below.'},
 ]
 
 convo_history_radio_dialogue = [
-    {'role': 'system', 'content': """
+    {'role': 'system', 'content': f"""
 Below is a conversation between a caller and radio DJ. You are the caller, and the user is the radio DJ.
 The call/caller is usually unhinged and a little weird, and you should follow the topic and personality of
 the caller. Note, you should always reply in English, and you should refrain from all-caps unless absolutely
 necessary. Keep the response concise and to the point.
+{metadata}
 """.strip().replace('\n', ' ')},
 ]
 
@@ -120,19 +161,26 @@ def infer_to_file_coqui(tts_text: str, output_fp, reference_audio_fp: Optional[s
     print(f'{reference_audio_fp=}')
 
     with log.Timer('COQUI'), TemporaryDirectory() as td:
-        tempoutpath = os.path.join(td, Path(output_fp).name)
-
         _output_fp: str = model.tts_to_file(
             text=tts_text,
             language="en",
-            speaker_wav=reference_audio_fp,
+            # speaker_wav=reference_audio_fp,
             speed=speed,
             file_path=output_fp,
             split_sentences=True,
+            speaker='Kazuhiko Atallah',
+
         )
+        # y, sr = librosa.load(tempoutpath)
+        # print(f'{y, sr=}')
+        # print(f'{len(y)=}')
+        # cleaned_y = librosa.effects.split(y, top_db=40, hop_length=int(0.5*sr))
+        # print(f'{len(cleaned_y)=}')
+        # write_wav(output_fp.replace('mp3', 'wav'), sr, cleaned_y)
+        # # librosa.output.write_wav(output_fp, cleaned_y, sr)
 
     # print(f'tts.tts_to_file returns: {type(_output_fp)=} // {_output_fp=}')
-
+    return output_fp
 
 def generate_new_caller_tape() -> str:
     """
@@ -149,14 +197,15 @@ def generate_new_caller_tape() -> str:
 
     convo_history_a = convo_history_tape_generation.copy()
     convo_history_a.append({'role': 'user', 'content': prompt})
-    if debug:
-        print(f'{convo_history_a=}')
+
+    # if debug:
+    #     print(f'{convo_history_a=}')
 
     with log.Timer('Logging VLLM response time'):
         content, _role = vllm_util.generate_response(convo_history_a, shared.CURRENT_ML_MODEL, shared.VLLM_SERVER_URL, stream=False, max_tokens=MAX_TOKENS, temperature=DEFAULT_TEMP)
     tts_text = re.sub(r'\s+', ' ', content.strip()).replace('\n', ' ')
 
-    print(f'\n\n{tts_text=}\n\n')
+    # print(f'\n\n{tts_text=}\n\n')
     # prompt = """
     # A delight surrounding the Mathematics of Finance is that while much is known, so
     # much is unknown. Consequently, with the current state of understanding, it is wise
@@ -230,7 +279,7 @@ def set_new_caller():
 
 # GRADIO BLOCKS
 with gr.Blocks(
-        theme='gradio/monochrome',
+        theme=gr.themes.Monochrome(),
         analytics_enabled=False,
         title='YAPP Radio!',
         # fill_height=True,
@@ -250,11 +299,15 @@ with gr.Blocks(
     with gr.Row():
         with gr.Column():
             checkbox_show_chat = gr.Checkbox(label="Show Chat", value=True)
+            select_voicesource = gr.Radio(choices=['speaker', 'wav'], label='Select source', value='speaker', interactive=True)
             chatbot = gr.Chatbot(convo_history_radio_dialogue.copy(), height=512, type='messages', show_copy_button=True, visible=checkbox_show_chat.value)
             input_textbox_str = gr.Textbox()
             clear_button = gr.Button("Clear")
         with gr.Column():
-            audio_caller = gr.Audio(label='Caller', type='filepath', show_share_button=False, autoplay=False)
+            waveform_options = gr.WaveformOptions(
+                # waveform_color='blue',
+                waveform_progress_color='green', trim_region_color='red', show_recording_waveform=False, sample_rate=24_000)
+            audio_caller = gr.Audio(label='Caller', type='filepath', show_share_button=False, autoplay=False, waveform_options=waveform_options)
             audio_dj = gr.Audio(label='DJ', type='numpy', sources=['microphone'], show_share_button=False)
             pass
 
