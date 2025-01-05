@@ -7,12 +7,15 @@ import argparse
 import json
 import requests
 
-DEFAULT_MAX_TOKENS = 8192
+DEFAULT_MAX_TOKENS = 8192 - 300  # Subtract approx amount on input for 8192 context window
 
 
 # General
 def render_model_api_uri(host, port):
     return f"http://{host}:{port}/v1/models"
+
+def create_vllm_chat_uri(host, port):
+    return f"http://{host}:{port}/v1/chat/completions"  # Update with your actual server URL
 
 
 # Model listing
@@ -136,6 +139,7 @@ def post_chat_request(
         n: int = 1,
         stream: bool = False,
         max_tokens=DEFAULT_MAX_TOKENS,
+        temperature: float = 1.0,
         debug: bool = False,
 ) -> requests.Response:
     """
@@ -149,6 +153,8 @@ def post_chat_request(
     :param n: number of beam responses
     :param stream: (bool) Return streaming response
     :param max_tokens:
+    :param temperature: temperature of prompt
+    :param debug: (bool) print debug info to console
     :return:
     """
 
@@ -162,7 +168,7 @@ def post_chat_request(
         "messages": cleanedchat,
         "n": n,
         "use_beam_search": n > 1,
-        "temperature": 0.0,
+        "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": stream,
     }
@@ -279,8 +285,9 @@ def http_bot(prompt: str, llm_uri: str, modelname, n=1, max_tokens=500,stream=Tr
 
 # Primary funcs
 
-def yield_streaming_response(chat: List[dict], model, api_url, stream: bool, max_tokens=DEFAULT_MAX_TOKENS) -> Tuple[str, str]:
+def yield_streaming_response(chat: List[dict], model, api_url, stream: bool, max_tokens=DEFAULT_MAX_TOKENS, temperature: float = 1.0, ) -> Tuple[str, str]:
     """
+    Stream an LLM response via vLLM
 
     :param chat:
         E.g. [{'role': 'assistant', 'content': 'I am a helpful AI.'}, {'role': 'user', 'content': 'What is the largest city on Earth?'}]
@@ -288,8 +295,8 @@ def yield_streaming_response(chat: List[dict], model, api_url, stream: bool, max
     :param api_url: E.g. 'localhost:8000'
     :param stream: True
     :param max_tokens: E.g. 1024
-    :return:
-        E.g. ('Tokyo, Japan', 'assistant')
+    :return: Returns 2-tuple generator in form of (CONTENT, ROLE)
+        E.g. generator of: ('Tokyo, Japan', 'assistant')
     """
     if not isinstance(chat, list):
         raise TypeError(f'Bad type for {type(chat)=} / {chat=}')
@@ -299,10 +306,18 @@ def yield_streaming_response(chat: List[dict], model, api_url, stream: bool, max
         api_url,
         stream=stream,
         max_tokens=max_tokens,
+        temperature=temperature,
     )
     if stream:
-
         for c in parse_chat_response_stream(response):
             yield c
     else:
         yield parse_chat_response(response)
+
+
+def generate_response(chat: List[dict], model, api_url, stream: bool, max_tokens=DEFAULT_MAX_TOKENS, temperature: float = 1.0, ) -> Tuple[str, str]:
+    try:
+        content, role = next(yield_streaming_response(chat=chat, model=model,api_url=api_url, stream=stream, max_tokens=max_tokens, temperature=temperature))
+    except StopIteration as e:
+        raise ValueError(f'No content to yield')
+    return content, role
