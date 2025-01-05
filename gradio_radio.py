@@ -10,7 +10,7 @@ Usage: `gradio <ThisFileName>`
 # from rccoqui.TTS.tts.models.xtts import Xtts
 # from rccoqui.TTS.api import TTS
 from typing import List, Optional, Tuple
-from backend import logging_extra as log, shared, vllm_util
+from backend import gradio_util, logging_extra as log, shared, vllm_util
 from tempfile import TemporaryDirectory
 import gradio as gr
 import numpy as np
@@ -26,7 +26,6 @@ import torch
 # import chromadb
 # from parler_tts import ParlerTTSForConditionalGeneration
 # from pydub.audio_segment import read_wav_audio
-from backend.gradio_util import reset_chatbox, add_dj_response_to_chat
 
 tab_title = '102.7FM YAPP Radio!'
 IS_LIVE = False  # If True, autoplay audio
@@ -288,11 +287,11 @@ with gr.Blocks(
 
     # Functions
     # Reset chat button
-    clear_button.click(reset_chatbox, None, chatbot, queue=False).then(lambda: None, None, audio_caller)
+    clear_button.click(gradio_util.reset_chatbox, None, chatbot, queue=False).then(lambda: None, None, audio_caller)
 
     # Click "New caller" button -> generate new caller
     btn_generate_new_recording.click(set_new_caller, inputs=None, outputs=state_current_caller_wav) \
-        .then(reset_chatbox, None, chatbot) \
+        .then(gradio_util.reset_chatbox, None, chatbot) \
         .then(generate_new_caller_tape, None, state_most_recent_tts) \
         .then(add_caller_text_to_chatbox, inputs=[chatbot, state_most_recent_tts], outputs=chatbot) \
         .then(render_voice, inputs=[state_most_recent_tts, slider_voicespeed, state_current_caller_wav], outputs=audio_caller)
@@ -305,7 +304,7 @@ with gr.Blocks(
 
     # Pause audio recording: Create audio response from DJ
     audio_dj.stop_recording(transcribe, inputs=audio_dj, outputs=state_mostrecent_dj_reply) \
-        .then(add_dj_response_to_chat, inputs=[chatbot, state_mostrecent_dj_reply], outputs=chatbot) \
+        .then(gradio_util.add_dj_response_to_chat, inputs=[chatbot, state_mostrecent_dj_reply], outputs=chatbot) \
         .then(generate_reply, chatbot, state_most_recent_tts) \
         .then(add_caller_text_to_chatbox, inputs=[chatbot, state_most_recent_tts], outputs=chatbot) \
         .then(render_voice, inputs=[state_most_recent_tts, slider_voicespeed, state_current_caller_wav], outputs=audio_caller)
