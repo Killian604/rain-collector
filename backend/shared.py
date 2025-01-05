@@ -6,14 +6,55 @@ import os
 import random
 
 repopath = os.path.dirname(os.path.dirname(__file__))
-radiocallersfile = os.path.abspath(os.path.join(repopath, 'prompts_radiostationcallers.txt'))
-
-assert os.path.isfile(radiocallersfile), f'FNF: {radiocallersfile=}'
-
 VLLM_SERVER_URL: str = ''
 CURRENT_ML_MODEL = None
-with open(radiocallersfile) as f:
-    mildlyrareprompts: List[str] = [line.strip() for line in f.readlines() if line.strip()]
+
+
+station_metadata = """
+Current radio station info: 102 point 7 "Yap Radio"
+Current radio show live: Mystery Caller Hour. Only interesting callers allowed!
+Current location: Rain City, Washington
+Current weather: 2 degree Celsius, raining heavily
+Caller criteria: any callers from the continental United States. No callers from Rain City.
+"""
+
+convo_history_character_generator = [
+    {'role': 'system', 'content': f"""
+You are a character-generating AI for a radio station. You make up radio station callers and their associate dialogue.
+You will be given a character
+and topic, and then your job is to generate a corresponding response that follows the request.
+Some other specifications are:
+- do not reply in all-caps
+- do not include the tone or loudness of the caller
+- do not include any non-spoken parts of language (e.g. "(giggles)" or "(In a panicked tone)")
+- do not include any metadata. Only reply with the dialogue of the character
+- No run-on sentences (each sentence must be 400 characters or less)
+- only reply in English. No other languages.
+
+Current station metadata:
+{station_metadata}
+""".strip()},
+    {'role': 'assistant', 'content': 'What character dialogue should I generate? Include the details below.'},
+]
+
+convo_history_radio_dialogue = [
+    {'role': 'system', 'content': f"""
+Below is a conversation between a caller and radio DJ. You are the caller, and the user is the radio DJ.
+The call/caller is usually unhinged and a little weird, and you should follow the topic and personality of
+the caller. Note, you should always reply in English, and you should refrain from all-caps unless absolutely
+necessary. Keep the response concise and to the point.
+{station_metadata}
+""".strip().replace('\n', ' ')},
+]
+
+
+# radiocallersfile = os.path.abspath(os.path.join(repopath, 'prompts_radiostationcallers.txt'))
+
+# assert os.path.isfile(radiocallersfile), f'FNF: {radiocallersfile=}'
+
+
+# with open(radiocallersfile) as f:
+#     mildlyrareprompts: List[str] = [line.strip() for line in f.readlines() if line.strip()]
 default_callers = [
     "Pretend like you're leaving a short voicemail at a radio station. ",
 ]

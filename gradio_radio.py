@@ -3,15 +3,14 @@ For running radio app
 
 Usage: `gradio <ThisFileName>`
 """
-import librosa
 # import rccoqui
 # from rccoqui.TTS import tts
 
-from rccoqui.TTS.tts.configs.xtts_config import XttsConfig
-from rccoqui.TTS.tts.models.xtts import Xtts
-from typing import Dict, List, Optional, Tuple
-from backend import gradio_logic, logging_extra as log, shared, vllm_util
-from scipy.io.wavfile import read as read_wav, write as write_wav
+# from rccoqui.TTS.tts.configs.xtts_config import XttsConfig
+# from rccoqui.TTS.tts.models.xtts import Xtts
+# from rccoqui.TTS.api import TTS
+from typing import List, Optional, Tuple
+from backend import logging_extra as log, shared, vllm_util
 from tempfile import TemporaryDirectory
 import gradio as gr
 import numpy as np
@@ -23,18 +22,16 @@ from transformers import pipeline
 from TTS.api import TTS
 import time
 import torch
-import pydub
-from transformers import AutoTokenizer
+
 # import chromadb
 # from parler_tts import ParlerTTSForConditionalGeneration
 # from pydub.audio_segment import read_wav_audio
-from pathlib import Path
+from backend.gradio_util import reset_chatbox, add_dj_response_to_chat
 
-js_head = """
-<script>
+tab_title = '102.7FM YAPP Radio!'
+IS_LIVE = False  # If True, autoplay audio
 
-</script>
-"""
+
 # Magic variables
 # Define the vLLM server URL
 VLLM_SERVER_IP, VLLM_SERVER_PORT = 'localhost', 8000
@@ -43,7 +40,7 @@ VLLM_SERVER_IP, VLLM_SERVER_PORT = '10.0.0.73', 8000
 voice_clone_wav_fp = '/home/killfm/Videos/aj/aj_evangelion.wav'
 wav_ref_audio_files = [
     '/home/killfm/Videos/aj/aj_evangelion.wav',
-    '/home/killfm/Videos/dana.mp3',
+    '/home/killfm/Videos/voices/dana.mp3',
 ]
 reference_voice_text = "And just that little bit makes me wild. And so, they can get them, because they're powerful, they're smart, they're neat"
 device = 'cuda'  # "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -51,6 +48,11 @@ default_speech_speed = 1.0
 DEFAULT_TEMP = 0.8
 MAX_TOKENS = 2048
 debug = True
+js_head = """
+<script>
+
+</script>
+"""
 
 if gr.NO_RELOAD:
     # ['Claribel Dervla', 'Daisy Studious', 'Gracie Wise', 'Tammie Ema', 'Alison Dietlinde', 'Ana Florence', 'Annmarie Nele', 'Asya Anara', 'Brenda Stern', 'Gitta Nikolina', 'Henriette Usha', 'Sofia Hellen', 'Tammy Grit', 'Tanja Adelina', 'Vjollca Johnnie', 'Andrew Chipper', 'Badr Odhiambo', 'Dionisio Schuyler', 'Royston Min', 'Viktor Eka', 'Abrahan Mack', 'Adde Michal', 'Baldur Sanjin', 'Craig Gutsy', 'Damien Black', 'Gilberto Mathias', 'Ilkin Urbano', 'Kazuhiko Atallah', 'Ludvig Milivoj', 'Suad Qasim', 'Torcull Diarmuid', 'Viktor Menelaos', 'Zacharie Aimilios', 'Nova Hogarth', 'Maja Ruoho', 'Uta Obando', 'Lidiya Szekeres', 'Chandra MacFarland', 'Szofi Granger', 'Camilla Holmström', 'Lilya Stainthorpe', 'Zofija Kendrick', 'Narelle Moon', 'Barbora MacLean', 'Alexandra Hisakawa', 'Alma María', 'Rosemary Okafor', 'Ige Behringer', 'Filip Traverse', 'Damjan Chapman', 'Wulf Carlevaro', 'Aaron Dreschner', 'Kumar Dahl', 'Eugenio Mataracı', 'Ferran Simen', 'Xavier Hayasaka', 'Luis Moray', 'Marcos Rudaski']
@@ -91,39 +93,7 @@ shared.VLLM_SERVER_URL = vllm_util.create_vllm_chat_uri(VLLM_SERVER_IP, VLLM_SER
 shared.CURRENT_ML_MODEL = vllm_util.get_models(VLLM_SERVER_IP, VLLM_SERVER_PORT)[0]
 
 # Init default convo
-metadata = """
-Current radio station info: 94.5 FM "Yap Radio"
-Current radio show live: Mystery Caller Hour only on Saturday
-"""
 
-convo_history_tape_generation = [
-    {'role': 'system', 'content': f"""
-You are a character-generating AI for a radio station. You make up radio station callers and their associate dialogue.
-You will be given a character
-and topic, and then your job is to generate a corresponding response that follows the request.
-Some other specifications are:
-- do not reply in all-caps
-- do not include the tone or loudness of the caller
-- do not include any non-spoken parts of language (e.g. "(giggles)" or "(In a panicked tone)")
-- do not include any metadata. Only reply with the dialogue of the character
-- No run-on sentences (each sentence must be 400 characters or less)
-- only reply in English. No other languages.
-
-Current station metadata:
-{metadata}
-""".strip()},
-    {'role': 'assistant', 'content': 'What character dialogue should I generate? Include the details below.'},
-]
-
-convo_history_radio_dialogue = [
-    {'role': 'system', 'content': f"""
-Below is a conversation between a caller and radio DJ. You are the caller, and the user is the radio DJ.
-The call/caller is usually unhinged and a little weird, and you should follow the topic and personality of
-the caller. Note, you should always reply in English, and you should refrain from all-caps unless absolutely
-necessary. Keep the response concise and to the point.
-{metadata}
-""".strip().replace('\n', ' ')},
-]
 
 
 # Pure functions that help with Gradio processing
@@ -168,7 +138,7 @@ def infer_to_file_coqui(tts_text: str, output_fp, reference_audio_fp: Optional[s
             speed=speed,
             file_path=output_fp,
             split_sentences=True,
-            speaker='Kazuhiko Atallah',
+            speaker='Tammie Ema',
 
         )
         # y, sr = librosa.load(tempoutpath)
@@ -195,7 +165,7 @@ def generate_new_caller_tape() -> str:
     if debug:
         print(f'{prompt=} / {type(prompt)=}')
 
-    convo_history_a = convo_history_tape_generation.copy()
+    convo_history_a = shared.convo_history_character_generator.copy()
     convo_history_a.append({'role': 'user', 'content': prompt})
 
     # if debug:
@@ -214,6 +184,8 @@ def generate_new_caller_tape() -> str:
     # description = "A young female speaker delivers a slightly expressive and animated speech with a medium slow speed and pitch. The recording sounds like a clip from a radio station."
     # description = "Jon's voice is monotone yet slightly fast in delivery, with a very close recording that almost has no background noise."
     description = shared.generate_caller_desc()
+    if tts_text.startswith('('):
+        return generate_new_caller_tape()
     return tts_text
 
 def generate_reply(chat) -> str:
@@ -236,8 +208,6 @@ def render_voice(tts_text: str, speed: float, callerwavpath):
         print(f'Output written to: {output_fp_mp3}')
     return output_fp_mp3
 
-def reset_chatbox() -> List[dict]:
-    return convo_history_radio_dialogue.copy()
 
 def add_caller_text_to_chatbox(chat, text):
     chat.append({
@@ -269,47 +239,48 @@ def transcribe(audio: tuple):
     print(f'Time to infer: {round(end - start, 1)} secs')
     return transcriber({"sampling_rate": sr, "raw": y})["text"]
 
-def add_dj_response_to_chat(chat, resp):
-    chat.append({'role': 'user', 'content': resp})
-    return chat
 
 def set_new_caller():
     reference_wav = random.choice(wav_ref_audio_files)
     return reference_wav
 
+def init_page():
+    return
+
+
 # GRADIO BLOCKS
 with gr.Blocks(
         theme=gr.themes.Monochrome(),
         analytics_enabled=False,
-        title='YAPP Radio!',
+        title=tab_title,
         # fill_height=True,
         # fill_width=True,
         head=js_head,
 ) as demo:
-    with gr.Row():
+    with gr.Row():  # Top row: settings
         with gr.Column():
             slider_voicespeed = gr.Slider(label='Voice speed', value=default_speech_speed, minimum=0.1, maximum=3.0, step=0.1, visible=True, interactive=True, elem_id='slidervoicespeed')
-        with gr.Column(): pass
+        with gr.Column():
+            pass
 
-    with gr.Row():
+    with gr.Row():  # Row button: generate new caller audio
         btn_generate_new_recording = gr.Button('Receive new caller')
 
-    with gr.Row(): pass  # Middlebreak
+    with gr.Row(): pass  # Middle break
 
     with gr.Row():
-        with gr.Column():
+        with gr.Column():  # Chat options and chatbox
             checkbox_show_chat = gr.Checkbox(label="Show Chat", value=True)
             select_voicesource = gr.Radio(choices=['speaker', 'wav'], label='Select source', value='speaker', interactive=True)
             chatbot = gr.Chatbot(convo_history_radio_dialogue.copy(), height=512, type='messages', show_copy_button=True, visible=checkbox_show_chat.value)
             input_textbox_str = gr.Textbox()
-            clear_button = gr.Button("Clear")
-        with gr.Column():
-            waveform_options = gr.WaveformOptions(
-                # waveform_color='blue',
-                waveform_progress_color='green', trim_region_color='red', show_recording_waveform=False, sample_rate=24_000)
-            audio_caller = gr.Audio(label='Caller', type='filepath', show_share_button=False, autoplay=False, waveform_options=waveform_options)
-            audio_dj = gr.Audio(label='DJ', type='numpy', sources=['microphone'], show_share_button=False)
+            clear_button = gr.Button("Disconnect Caller")
             pass
+        with gr.Column():  # Audio players
+            waveform_options_caller = gr.WaveformOptions(waveform_color=None, waveform_progress_color='green', trim_region_color=None, show_recording_waveform=False, sample_rate=24_000)
+            waveform_options_dj = gr.WaveformOptions(waveform_color=None, waveform_progress_color='green', trim_region_color='red', show_recording_waveform=False, sample_rate=44_100)
+            audio_caller = gr.Audio(label='Caller', type='filepath', show_share_button=False, show_download_button=False, autoplay=IS_LIVE, waveform_options=waveform_options_caller)
+            audio_dj = gr.Audio(label='DJ', type='numpy', sources=['microphone'], show_share_button=False, waveform_options=waveform_options_dj)
 
     state_most_recent_tts = gr.State('')
     state_mostrecent_dj_reply = gr.State('')
@@ -317,7 +288,7 @@ with gr.Blocks(
 
     # Functions
     # Reset chat button
-    clear_button.click(reset_chatbox, None, chatbot, queue=False)
+    clear_button.click(reset_chatbox, None, chatbot, queue=False).then(lambda: None, None, audio_caller)
 
     # Click "New caller" button -> generate new caller
     btn_generate_new_recording.click(set_new_caller, inputs=None, outputs=state_current_caller_wav) \
@@ -327,13 +298,7 @@ with gr.Blocks(
         .then(render_voice, inputs=[state_most_recent_tts, slider_voicespeed, state_current_caller_wav], outputs=audio_caller)
 
     # Input text into textbox: Force new message via text
-    input_textbox_str.submit(
-        update_history_with_user_prompt,
-        [input_textbox_str, chatbot],
-        [input_textbox_str, chatbot],
-        scroll_to_output=True,
-        queue=False,
-    ) \
+    input_textbox_str.submit(update_history_with_user_prompt, [input_textbox_str, chatbot], [input_textbox_str, chatbot], scroll_to_output=True, queue=False) \
         .then(generate_reply, chatbot, state_most_recent_tts) \
         .then(add_most_recent_chatbox_reply_to_current_most_recent_state, chatbot, state_most_recent_tts) \
         .then(render_voice, inputs=[state_most_recent_tts, slider_voicespeed, state_current_caller_wav], outputs=audio_caller)
@@ -346,13 +311,14 @@ with gr.Blocks(
         .then(render_voice, inputs=[state_most_recent_tts, slider_voicespeed, state_current_caller_wav], outputs=audio_caller)
     checkbox_show_chat.change(lambda x: gr.update(visible=x), checkbox_show_chat, chatbot)
 
+    demo.load(init_page, inputs=None, outputs=None)
 
 if __name__ == '__main__':
     demo.launch(
         show_error=True,
         debug=True,
+        inbrowser=True,
         #         inline: bool | None = None,
-        #         inbrowser: bool = False,
         #         share: bool | None = None,
         #         debug: bool = False,
         #         max_threads: int = 40,
