@@ -272,7 +272,7 @@ with gr.Blocks(
         with gr.Column():  # Chat options and chatbox
             checkbox_show_chat = gr.Checkbox(label="Show Chat", value=True)
             select_voicesource = gr.Radio(choices=['speaker', 'wav'], label='Select source', value='speaker', interactive=True)
-            chatbot = gr.Chatbot(convo_history_radio_dialogue.copy(), height=512, type='messages', show_copy_button=True, visible=checkbox_show_chat.value)
+            chatbot = gr.Chatbot(shared.convo_history_radio_dialogue.copy(), height=512, type='messages', show_copy_button=True, visible=checkbox_show_chat.value)
             input_textbox_str = gr.Textbox()
             clear_button = gr.Button("Disconnect Caller")
             pass

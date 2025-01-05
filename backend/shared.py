@@ -65,7 +65,6 @@ mildlyrareprompts = [
 rare_prompts = [
     "Pretend like you're a crazy caller who is leaving a short voicemail at a radio station. What is God's favorite tap water?",
 ]
-weights = []
 
 
 def generate_new_caller_prompt():
@@ -75,22 +74,18 @@ def generate_new_caller_prompt():
     )[0]
 
 
-# print(f'{mildlyrareprompts=}')
 # possible_tape_prompts = ['This is the default text. Read me out loud for Laura.']
 parler_names = ['Laura', 'Gary', 'Jon', 'Lea', 'Karen', 'Rick', 'Brenda', 'David', 'Eileen', 'Jordan', 'Mike', 'Yann',
                 'Joy', 'James', 'Eric', 'Lauren', 'Rose', 'Will', 'Jason', 'Aaron', 'Naomie', 'Alisa', 'Patrick',
                 'Jerry', 'Tina', 'Jenna', 'Bill', 'Tom', 'Carol', 'Barbara', 'Rebecca', 'Anna', 'Bruce', 'Emily',
                 ]
-# parler_names = [
-#     'Gary',
-# ]
 possible_callers_descriptions: List[str] = [
     # '$NAME is a crazy person from Utah. This person speaks English. There is lots of background noise. There is a radio hiss of static in the background as if this is recorded from a pay phone.',
     '$NAME is a crazy person from Utah. This person speaks English. There is no background noise.'
 ]
 
 
-def generate_caller_desc():
+def generate_caller_desc():  # For Parler TTS
     name = random.choice(parler_names)
     return random.choice(possible_callers_descriptions).replace('$NAME', name)
 
