@@ -1,7 +1,7 @@
 """
 
 """
-import json
+from backend import shared
 from typing import Iterable, List, Tuple, Union
 import argparse
 import json
@@ -11,7 +11,7 @@ DEFAULT_MAX_TOKENS = 8192 - 300  # Subtract approx amount on input for 8192 cont
 
 
 # General
-def render_model_api_uri(host, port):
+def render_models_api_uri(host, port):
     return f"http://{host}:{port}/v1/models"
 
 def create_vllm_chat_uri(host, port):
@@ -26,7 +26,7 @@ def _get_models_response(host, port) -> requests.Response:
         j={'object': 'list', 'data': [{'id': './NousResearch_Hermes-3-Llama-3.1-8B/', 'object': 'model', 'created': 1726188329, 'owned_by': 'vllm', 'root': './NousResearch_Hermes-3-Llama-3.1-8B/', 'parent': None, 'max_model_len': 40000, 'permission': [{'id': 'modelperm-f6e6486441fb4ee7adc4c5c3bea81b45', 'object': 'model_permission', 'created': 1726188329, 'allow_create_engine': False, 'allow_sampling': True, 'allow_logprobs': True, 'allow_search_indices': False, 'allow_view': True, 'allow_fine_tuning': False, 'organization': '*', 'group': None, 'is_blocking': False}]}]}
         modelsnamesdicts=[{'id': './NousResearch_Hermes-3-Llama-3.1-8B/', 'object': 'model', 'created': 1726188329, 'owned_by': 'vllm', 'root': './NousResearch_Hermes-3-Llama-3.1-8B/', 'parent': None, 'max_model_len': 40000, 'permission': [{'id': 'modelperm-f6e6486441fb4ee7adc4c5c3bea81b45', 'object': 'model_permission', 'created': 1726188329, 'allow_create_engine': False, 'allow_sampling': True, 'allow_logprobs': True, 'allow_search_indices': False, 'allow_view': True, 'allow_fine_tuning': False, 'organization': '*', 'group': None, 'is_blocking': False}]}]
     """
-    api_url = render_model_api_uri(host, port)
+    api_url = render_models_api_uri(host, port)
     headers = {"User-Agent": "Test Client"}
     try:
         response = requests.get(
@@ -215,7 +215,12 @@ def parse_chat_response(response) -> Tuple[str, str]:
         'prompt_logprobs': None}
     """
     j = response.json()
-    return j['choices'][0]['message']['content'], j['choices'][0]['message']['role']
+    try:
+        content, role = j['choices'][0]['message']['content'], j['choices'][0]['message']['role']
+    except KeyError:
+        print(f'{j=}')
+        raise
+    return content, role
 
 
 def parse_chat_response_stream(r: requests.Response, debug=False) -> Tuple[str, str]:
@@ -254,6 +259,7 @@ def parse_chat_response_stream(r: requests.Response, debug=False) -> Tuple[str, 
                 # raise
             if debug:
                 print(f'{data=}')
+            # methodnotallowed
             if 'choices' not in data:
 
                 raise ValueError(f'Not "choices" available: {data=} \n\n {json.dumps(data, indent=4)}')
@@ -267,7 +273,7 @@ def parse_chat_response_stream(r: requests.Response, debug=False) -> Tuple[str, 
 
 
 def http_bot(prompt: str, llm_uri: str, modelname, n=1, max_tokens=500,stream=True):
-    print(f'{prompt=}')
+    # print(f'{prompt=}')
     headers = {"User-Agent": "vLLM Client"}
     pload = {
         'model': modelname,
@@ -293,7 +299,7 @@ def yield_streaming_response(chat: List[dict], model, api_url, stream: bool, max
         E.g. [{'role': 'assistant', 'content': 'I am a helpful AI.'}, {'role': 'user', 'content': 'What is the largest city on Earth?'}]
     :param model: E.g. 'Llama3.1'
     :param api_url: E.g. 'localhost:8000'
-    :param stream: True
+    :param stream:
     :param max_tokens: E.g. 1024
     :return: Returns 2-tuple generator in form of (CONTENT, ROLE)
         E.g. generator of: ('Tokyo, Japan', 'assistant')
@@ -308,6 +314,8 @@ def yield_streaming_response(chat: List[dict], model, api_url, stream: bool, max
         max_tokens=max_tokens,
         temperature=temperature,
     )
+    if response.status_code == 405:  # "Method not allowed"
+        raise ValueError(f'Error 405 occurred: {response=}')
     if stream:
         for c in parse_chat_response_stream(response):
             yield c
@@ -321,3 +329,28 @@ def generate_response(chat: List[dict], model, api_url, stream: bool, max_tokens
     except StopIteration as e:
         raise ValueError(f'No content to yield')
     return content, role
+
+
+def generate_random_location():
+    content, role = yield_streaming_response(shared.chathistory_yield_location, shared.CURRENT_ML_MODEL, shared.VLLM_SERVER_URL, max_tokens=DEFAULT_MAX_TOKENS, stream=False)
+    return content.strip()
+
+
+if __name__ == '__main__' and False:
+    host, port = '10.0.0.73', 8000
+
+    model = get_models(host, port)[0]
+    api_url = create_vllm_chat_uri(host, port)
+    print(f'{model=}')
+
+    sample_chat = [
+        {'role': 'system', 'content': 'You are a generalized AI that can answer anything you put your mind to.'},
+        {'role': 'assistant', 'content': 'How can I help you today?'},
+        {'role': 'user', 'content': 'Tell me about the various biomes present on Earth.'}
+    ]
+    sample_chat = [
+        {'role': 'system', 'content': 'You are a general-purpose AI. You help the user. Answer concisely.'},
+        {'role': 'user', 'content': 'Please generate a random location in the United States of America.'},
+    ]
+    content, role = generate_response(sample_chat, model, api_url, max_tokens=1_000, stream=False)
+    print(f'{content=}')
