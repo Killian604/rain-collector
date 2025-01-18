@@ -70,8 +70,10 @@ cookbook/ is for short scripts that show you how to do stuff
 - `StyleTTS2`: Incredibly hard to implement fast inference to prove concept
 - `GPT-SoVITS`: Extremely hacky repo. Not enough bonuses to use this over fish-audio, so dropping usage. Written in Chinese first.
 - `suno/bark`: Slow to inference. No voice cloning. Has SOME non-talking attributes like [laughter]
+- `kokoro`: Could not get to load from `build_model()` based on usage instructions.
+- `piper`/`piper-tts`: pip package does not exist despite being used in installation instructions. Aimed for Pi4 usage.
 
-
+_
 
 - To ASR a 4.5h podcast with Whisper Large, it takes about 30 min
   - So it takes about 1 min of runtime per 9 min of audio
@@ -126,5 +128,16 @@ Source: https://github.com/huggingface/blog/blob/main/open-llm-leaderboard-mmlu.
   - Self note: probs are summed (and normalized probably). If unsure or value is 
   - Docs note: "For numerical stability we gather them by summing the logarithm of the probabilities and we can decide (or not) to compute a normalization in which we divide the sum by the number of tokens to avoid giving too much advantage to longer answers "
 
+
+# Notes for accepting future calls
+- Must be within a time limit (20-60s? Depends on topic)
+- Must not be too loud
+- Must not have prohibited words
+- Must not have gratuitous curse words
+- (Must be on topic?)
+
+
 # Other resources
 https://github.com/langchain-ai/rag-from-scratch?tab=readme-ov-file
+
+
