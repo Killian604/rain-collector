@@ -10,7 +10,7 @@ Usage: `gradio <ThisFileName>`
 # from rccoqui.TTS.tts.models.xtts import Xtts
 # from rccoqui.TTS.api import TTS
 from typing import List, Optional, Tuple
-from backend import gradio_util, logging_extra as log, shared, vllm_util
+from backend import gradio_blocks, gradio_util, logging_extra as log, shared, vllm_util
 from tempfile import TemporaryDirectory
 import gradio as gr
 import numpy as np
@@ -28,14 +28,17 @@ import torch
 # from pydub.audio_segment import read_wav_audio
 
 tab_title = '102.7FM YAPP Radio!'
-IS_LIVE = False  # If True, autoplay audio
+IS_LIVE = False  # autoplay audio and ___
+debug = True  # Print stuff to console
 
 
 # Magic variables
 # Define the vLLM server URL
+SERVER_PORT = 7860
 VLLM_SERVER_IP, VLLM_SERVER_PORT = 'localhost', 8000
 VLLM_SERVER_IP, VLLM_SERVER_PORT = '10.0.0.73', 8000
 # voice_clone_wav_fp = '/home/killfm/Videos/aj/aj_cryptic_andjustthatlittlebit.wav'  # aj_evan
+
 voice_clone_wav_fp = '/home/killfm/Videos/aj/aj_evangelion.wav'
 wav_ref_audio_files = [
     '/home/killfm/Videos/aj/aj_evangelion.wav',
@@ -43,14 +46,27 @@ wav_ref_audio_files = [
 ]
 reference_voice_text = "And just that little bit makes me wild. And so, they can get them, because they're powerful, they're smart, they're neat"
 device = 'cuda'  # "cuda:0" if torch.cuda.is_available() else "cpu"
-default_speech_speed = 1.0
+default_speech_speed = 1.25
 DEFAULT_TEMP = 0.8
-MAX_TOKENS = 2048
-debug = True
+MAX_TOKENS = 4_000
 js_head = """
 <script>
+function shortcuts(e) {
+  var event = document.all ? window.event : e;
+  switch (e.target.tagName.toLowerCase()) {
+    case "input":
+    case "textarea":
+    case "select":
+    case "button":
+    break;
+    default:
+    if (e.key == "a") {console.log(e.key + " pressed"); }
+    else {}
 
 </script>
+"""
+custom_css = """
+
 """
 
 if gr.NO_RELOAD:
@@ -64,14 +80,15 @@ if gr.NO_RELOAD:
     # model2.cuda()
     # torch.compile(model2)
 
-    model = TTS("tts_models/multilingual/multi-dataset/xtts_v2", gpu=True).to(device)
-    model.eval()
+    model_xtts = TTS("tts_models/multilingual/multi-dataset/xtts_v2", gpu=True).to(device)
+    model_xtts.eval()
+    torch.compile(model_xtts)
+
     # model = TTS("tts_models/multilingual/multi-dataset/your_tts").to(device)
     # model = TTS("tts_models/multilingual/multi-dataset/bark").to(device)  # Limited for voice cloning, but interesting to say the least
     # print(f'\n{TTS().list_models()=}\n')
     # model = ParlerTTSForConditionalGeneration.from_pretrained("parler-tts/parler-tts-mini-v1").to(device)
     # tokenizer = AutoTokenizer.from_pretrained("parler-tts/parler-tts-mini-v1")
-    torch.compile(model)
     transcriber = pipeline("automatic-speech-recognition", model="openai/whisper-base.en", device_map='auto')
 
     # outputs: dict = model2.synthesize(
@@ -116,17 +133,14 @@ def request_llm_response_to_chat_history(chatbot_history_to_send_to_llm: List[di
     return chatbot_history_to_send_to_llm
 
 
+
 @torch.inference_mode()
 def infer_to_file_coqui(tts_text: str, output_fp, reference_audio_fp: Optional[str] = None, speed=default_speech_speed, **kwargs):
     # Since this model is multi-lingual voice cloning model, we must set the target speaker_wav and language
-    # tts_text = '[laughter] Is this the bark model? Are you kidding me? 99.5 FM? I cant believe my luck!!!!'
-    # print(f'{tts_text=}')
-    # Text to speech to a file
-
-    print(f'{reference_audio_fp=}')
+    # print(f'{reference_audio_fp=}')
 
     with log.Timer('COQUI'), TemporaryDirectory() as td:
-        _output_fp: str = model.tts_to_file(
+        _output_fp: str = model_xtts.tts_to_file(
             text=tts_text,
             language="en",
             # speaker_wav=reference_audio_fp,
@@ -242,46 +256,70 @@ def set_new_caller():
 def init_page():
     return
 
-
+def init_main_tab():
+    pass
+def clear_chatbox():
+    return shared.convo_history_general.copy(), ''
 # GRADIO BLOCKS
+# th = gr.themes.Base(primary_hue='green', secondary_hue='red', )
+th = gr.themes.Base().from_hub('lone17/kotaemon')
+th.set(
+    button_primary_text_color_dark='white',
+    button_secondary_text_color_dark='white',
+    button_cancel_background_fill_dark='red',
+)
 with gr.Blocks(
-        theme=gr.themes.Monochrome(),
+        theme=th,
+        # theme=gr.themes.Monochrome(),
+        # theme='lone17/kotaemon',
         analytics_enabled=False,
         title=tab_title,
         # fill_height=True,
         # fill_width=True,
         head=js_head,
+        css=custom_css,
 ) as demo:
-    with gr.Row():  # Top row: settings
-        with gr.Column():
-            slider_voicespeed = gr.Slider(label='Voice speed', value=default_speech_speed, minimum=0.1, maximum=3.0, step=0.1, visible=True, interactive=True, elem_id='slidervoicespeed')
-        with gr.Column():
+    with gr.Tab('Main'):
+        with gr.Row():  # Top row: settings
+            with gr.Column():
+                slider_voicespeed = gr.Slider(label='Voice speed', value=default_speech_speed, minimum=0.1, maximum=3.0, step=0.1, visible=True, interactive=True, elem_id='slidervoicespeed')
+            with gr.Column():
+                pass
+
+        with gr.Row():  # Row button: generate new caller audio
+            btn_generate_new_recording = gr.Button('Receive new caller', variant='primary')
+
+        with gr.Row(): pass  # Middle break
+
+        with gr.Row(variant='panel', show_progress=True):
+            with gr.Column():  # Chat options and chatbox
+                checkbox_show_chat = gr.Checkbox(label="Show Chat", value=True)
+                select_voicesource = gr.Radio(choices=['speaker', 'wav'], label='Select source', value='speaker', interactive=True)
+                chatbot = gr.Chatbot(shared.convo_history_radio_dialogue.copy(), height=512, type='messages', show_copy_button=True, visible=checkbox_show_chat.value)
+                input_textbox_str = gr.Textbox(label='Send text reply to caller')
+
+
+            with gr.Column():  # Audio players
+                waveform_options_caller = gr.WaveformOptions(waveform_color=None, waveform_progress_color='green', trim_region_color=None, show_recording_waveform=False, sample_rate=24_000)
+                waveform_options_dj = gr.WaveformOptions(waveform_color=None, waveform_progress_color='green', trim_region_color='red', show_recording_waveform=False, sample_rate=44_100)
+                audio_caller = gr.Audio(label='Caller', type='filepath', show_share_button=False, show_download_button=False, autoplay=IS_LIVE, waveform_options=waveform_options_caller)
+                audio_dj = gr.Audio(label='DJ', type='numpy', sources=['microphone'], show_share_button=False, waveform_options=waveform_options_dj)
+        with gr.Row():
+            clear_button = gr.Button("Disconnect Caller", variant='stop')
+        state_most_recent_tts = gr.State('')
+        state_mostrecent_dj_reply = gr.State('')
+        state_current_caller_wav = gr.State(random.choice(wav_ref_audio_files))
+    with gr.Tab('Misc.'):
+        with gr.Row():  # Workshop
+            state_mostrecent_tts_workshop = gr.State('')
+            with gr.Column():
+                chatbox_workshop = gr.Chatbot(shared.convo_history_general.copy(), height=512, type='messages', show_copy_button=True, visible=checkbox_show_chat.value)
+                input_textbox_workshop = gr.Textbox(label='Send text workshop AI')
+                btn_clear_workshop_dialogue = gr.Button(value='Clear convo')
+        with gr.Row():  # Tab: Settings
             pass
 
-    with gr.Row():  # Row button: generate new caller audio
-        btn_generate_new_recording = gr.Button('Receive new caller')
-
-    with gr.Row(): pass  # Middle break
-
-    with gr.Row():
-        with gr.Column():  # Chat options and chatbox
-            checkbox_show_chat = gr.Checkbox(label="Show Chat", value=True)
-            select_voicesource = gr.Radio(choices=['speaker', 'wav'], label='Select source', value='speaker', interactive=True)
-            chatbot = gr.Chatbot(shared.convo_history_radio_dialogue.copy(), height=512, type='messages', show_copy_button=True, visible=checkbox_show_chat.value)
-            input_textbox_str = gr.Textbox(label='Send text reply to caller')
-            clear_button = gr.Button("Disconnect Caller")
-            pass
-        with gr.Column():  # Audio players
-            waveform_options_caller = gr.WaveformOptions(waveform_color=None, waveform_progress_color='green', trim_region_color=None, show_recording_waveform=False, sample_rate=24_000)
-            waveform_options_dj = gr.WaveformOptions(waveform_color=None, waveform_progress_color='green', trim_region_color='red', show_recording_waveform=False, sample_rate=44_100)
-            audio_caller = gr.Audio(label='Caller', type='filepath', show_share_button=False, show_download_button=False, autoplay=IS_LIVE, waveform_options=waveform_options_caller)
-            audio_dj = gr.Audio(label='DJ', type='numpy', sources=['microphone'], show_share_button=False, waveform_options=waveform_options_dj)
-
-    state_most_recent_tts = gr.State('')
-    state_mostrecent_dj_reply = gr.State('')
-    state_current_caller_wav = gr.State(random.choice(wav_ref_audio_files))
-
-    # Functions
+    # Main Functions
     # Reset chat button
     clear_button.click(gradio_util.reset_chatbox, None, chatbot, queue=False) \
         .then(lambda: None, None, audio_caller)
@@ -309,12 +347,18 @@ with gr.Blocks(
         .then(add_caller_text_to_chatbox, inputs=[chatbot, state_most_recent_tts], outputs=chatbot) \
         .then(render_voice_to_wav_file, inputs=[state_most_recent_tts, slider_voicespeed, state_current_caller_wav], outputs=audio_caller)
 
+    # Workshop functions
+    input_textbox_workshop.submit(update_history_with_user_prompt, [input_textbox_workshop, chatbox_workshop], [input_textbox_workshop, chatbox_workshop],  scroll_to_output=True, queue=False)\
+        .then(request_llm_response_to_chat_history, chatbox_workshop, chatbox_workshop)
+    btn_clear_workshop_dialogue.click(clear_chatbox, inputs=None, outputs=[chatbox_workshop, input_textbox_workshop])
     # On page load: populate stuff? like next personality?
     demo.load(init_page, inputs=None, outputs=None)
 
 
 if __name__ == '__main__':
     demo.launch(
+        server_name='10.0.0.57',
+        server_port=SERVER_PORT,
         show_error=True,
         debug=True,
         inbrowser=True,
