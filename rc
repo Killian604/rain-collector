@@ -37,6 +37,26 @@ Available commands:
         getattr(self, args.command)()
 
     # Commands
+    def counttokens(self):
+        parser = argparse.ArgumentParser(
+            usage="""
+Description: count tokens of files
+Form:
+- python nx counttokens -i [filepath]
+
+Examples:
+- python nx counttokens -i music.mp3 -o music.wav
+""",
+        )
+        parser.add_argument('-i', '--input', required=True, help='Required: ')
+        parser.add_argument('-m', '--model', required=False, help='Optional: ')
+        args = parser.parse_args(sys.argv[2:])
+        app.counttokens(
+            args.input,
+            args.model,
+        )
+
+
     def mp3towav(self):
         parser = argparse.ArgumentParser(
             prog=None,
@@ -81,6 +101,11 @@ Examples:
             force=args.force,
         )
         pass
+
+    def tokens(self):
+        return self.counttokens()
+
+
 
 if __name__ == '__main__':
     rc()
