@@ -14,7 +14,7 @@ VLLM_SERVER_IP, VLLM_SERVER_PORT = 'localhost', 8000
 VLLM_SERVER_IP, VLLM_SERVER_PORT = '10.0.0.73', 8000
 VLLM_SERVER_URL = f"http://{VLLM_SERVER_IP}:{VLLM_SERVER_PORT}/v1/chat/completions"  # Update with your actual server URL
 # VLLM_SERVER_URL = "http://10.0.0.73:8000/v1/chat/completions"  # Update with your actual server URL
-files_to_examine = ['./gradio_chat_stream_vllm.py', './backend/vllm_util.py']
+files_to_examine = ['./gradio_chat_vllm.py', './backend/vllm_util.py']
 
 context = ''
 # for file in files_to_examine:
