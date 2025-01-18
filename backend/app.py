@@ -8,7 +8,7 @@ from uvicorn.config import LOGGING_CONFIG
 from backend.model_server import fastapiapp
 from pydub import AudioSegment
 # from settings import *
-from typing import Optional
+from typing import Collection, List, Optional
 import os
 import sys
 import time
@@ -138,19 +138,41 @@ def asr_whisper(mp3path) -> str:
     return text
     # breakpoint()
 
+def recursively_search_files(d) -> List[str]:
+    """
+    :param d: a directory path
+    :return:
+    """
+    result = [os.path.join(dp, f) for dp, dn, filenames in os.walk(d) for f in filenames]
+    return result
 
-def counttokens(inputfilepath: str, modelpath: Optional[str] = None):
+def counttokens(inputs: List[str], modelpath: Optional[str] = None):
+    print(f'{type(inputs)=}')
+    if len(inputs) == 0:
+        raise ValueError(f"Empty inputs: {inputs=}")
+    elif len(inputs) == 1:
+        with open(inputs[0], 'r') as f:
+            input_text = ''.join(f.readlines())
+    elif len(inputs) > 1 and all([os.path.exists(x) for x in inputs]):
+        input_text= ''
+        allfiles = []
+        for f in inputs:
+            if os.path.isfile(f):
+                allfiles.append(f)
+            allrecursivesbfiles = [x for x in recursively_search_files(f) if not x.endswith('.pyc')]
+            allfiles.extend(allrecursivesbfiles)
+        for f in allfiles:
+            input_text += ''.join(open(f, 'r').readlines())
+    else:
+        raise NotImplementedError(f'This functionality for combination of inputs is not yet done.')
+
     start = time.perf_counter()
-    init()
+    init()  # For colour text
 
-    # Replace this path with the directory where you have the model files.
+    # # Replace this path with the directory where you have the model files.
     # model_id = r"meta-llama/Meta-Llama-3.1-8B-Instruct"  # This phrasing would check cache
     model_id = modelpath or "/home/killfm/projects/text-generation-webui/models/Meta-Llama-3.1-8B-Instruct"
 
-    # mytext = 'Default text goes here!'
-    # mytext = 'You can also use ANSI escape codes to add color to your STDOUT output without using the colorama library. Here\'s an example'
-    with open(inputfilepath, 'r') as f:
-        mytext = ''.join(f.readlines())
     assert os.path.isdir(model_id), f'Dir not found: {model_id=}'
 
     # Load the tokenizer
@@ -159,14 +181,12 @@ def counttokens(inputfilepath: str, modelpath: Optional[str] = None):
         device_map='cpu',
     )
 
-    inputtext = mytext  #  if len(sys.argv) <= 1 else ' '.join(sys.argv[1:])
-
+    inputtext = input_text  #  if len(sys.argv) <= 1 else ' '.join(sys.argv[1:])
     tokenizer_output = tokenizer(inputtext)
     total_tokens = len(tokenizer_output["input_ids"])
     print(f'Input text: {inputtext}')
     print(f'{tokenizer_output=}')
-    print(
-        Style.BRIGHT + Fore.GREEN + f'Number of tokens for input text: {total_tokens - 1}'.rjust(25) + Style.RESET_ALL)
+    print(Style.BRIGHT + Fore.GREEN + f'Number of tokens for input text: {total_tokens - 1}'.rjust(25) + Style.RESET_ALL)
     print(Style.BRIGHT + Fore.GREEN + f'{total_tokens - 1} text tokens generated'.rjust(25) + Style.RESET_ALL)
     print(f'(Total tokens generated: {total_tokens})'.rjust(25))
 
@@ -178,7 +198,7 @@ def counttokens(inputfilepath: str, modelpath: Optional[str] = None):
         print(f'{i:02d}: Input text: {word.rjust(22)} / Tokens={len(tokenoutputtextonly)}')
         for v in tokenoutputtextonly:
             iv_str = tokenizer.decode(v)
-            print(f'\t{iv_str=}')
+            print(f'\tSub-word token: {iv_str}')
         print()
 
     print()
