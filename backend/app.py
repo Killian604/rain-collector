@@ -147,13 +147,16 @@ def recursively_search_files(d) -> List[str]:
     return result
 
 def counttokens(inputs: List[str], modelpath: Optional[str] = None):
+    """
+
+    :param inputs:
+    :param modelpath:
+    :return:
+    """
     print(f'{type(inputs)=}')
     if len(inputs) == 0:
         raise ValueError(f"Empty inputs: {inputs=}")
-    elif len(inputs) == 1:
-        with open(inputs[0], 'r') as f:
-            input_text = ''.join(f.readlines())
-    elif len(inputs) > 1 and all([os.path.exists(x) for x in inputs]):
+    elif  all([os.path.exists(x) for x in inputs]):
         input_text= ''
         allfiles = []
         for f in inputs:
@@ -164,7 +167,7 @@ def counttokens(inputs: List[str], modelpath: Optional[str] = None):
         for f in allfiles:
             input_text += ''.join(open(f, 'r').readlines())
     else:
-        raise NotImplementedError(f'This functionality for combination of inputs is not yet done.')
+        input_text = ' '.join(inputs)
 
     start = time.perf_counter()
     init()  # For colour text
