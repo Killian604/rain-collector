@@ -48,7 +48,7 @@ Examples:
 - python nx counttokens -i music.mp3 -o music.wav
 """,
         )
-        parser.add_argument('-i', '--input', required=True, help='Required: ')
+        parser.add_argument('-i', '--input', required=True, type=str, nargs='+', help='Required: ')
         parser.add_argument('-m', '--model', required=False, help='Optional: ')
         args = parser.parse_args(sys.argv[2:])
         app.counttokens(

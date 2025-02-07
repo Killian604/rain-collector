@@ -117,7 +117,7 @@ def process_chunk(text_chunk, chunk_num, SYS_PROMPT, tokenizer, model, device) -
             **inputs,
             temperature=0.7,
             top_p=0.9,
-            max_new_tokens=512
+            max_new_tokens=2048,
         )
 
     processed_text = tokenizer.decode(output[0], skip_special_tokens=True)[len(prompt):].strip()
@@ -140,3 +140,35 @@ def validate_pdf(file_path: str) -> bool:
         return False
     return True
 
+
+def read_file_to_string(filename):
+    """
+    Step2
+    Try UTF-8 first (most common encoding for text files)
+    :param filename:
+    :return:
+    """
+    try:
+        with open(filename, 'r', encoding='utf-8') as file:
+            content = file.read()
+        return content
+    except UnicodeDecodeError:
+        # If UTF-8 fails, try with other common encodings
+        encodings = ['latin-1', 'cp1252', 'iso-8859-1']
+        for encoding in encodings:
+            try:
+                with open(filename, 'r', encoding=encoding) as file:
+                    content = file.read()
+                print(f"Successfully read file using {encoding} encoding.")
+                return content
+            except UnicodeDecodeError:
+                continue
+
+        print(f"Error: Could not decode file '{filename}' with any common encoding.")
+        return None
+    except FileNotFoundError:
+        print(f"Error: File '{filename}' not found.")
+        return None
+    except IOError:
+        print(f"Error: Could not read file '{filename}'.")
+        return None

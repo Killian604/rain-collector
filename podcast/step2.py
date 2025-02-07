@@ -2,18 +2,19 @@
 Write initial transcript
 
 """
+from podcast import backend
+from accelerate import Accelerator
+from tqdm.notebook import tqdm
 import os
 import torch
-from accelerate import Accelerator
 import transformers
 import pickle
-from tqdm.notebook import tqdm
 import warnings
-from podcast import backend
 
 
 warnings.filterwarnings('ignore')
-model_path = "meta-llama/Llama-3.1-70B-Instruct"
+# model_path = "meta-llama/Llama-3.1-70B-Instruct"
+model_path = os.path.join('/home/killfm/projects/text-generation-webui/models', 'Meta-Llama-3.1-8B-Instruct')
 SYSTEMP_PROMPT = """
 You are the a world-class podcast writer, you have worked as a ghost writer for Joe Rogan, Lex Fridman, Ben Shapiro, Tim Ferris. 
 
@@ -69,12 +70,6 @@ def main(cleeantextpath: str):
     print(outputs[0]["generated_text"][-1]['content'])
     with open('./data.pkl', 'wb') as file:
         pickle.dump(save_string_pkl, file)
-
-    pass
-
-
-
-
 
 
 if __name__ == '__main__':

@@ -2,38 +2,34 @@
 Write initial transcript
 
 """
+import ast
 from pydub import AudioSegment
 import io
 from scipy.io import wavfile
-from IPython.display import Audio
+
 import IPython.display as ipd
-from tqdm import tqdm
 import os
 import transformers
 import pickle
-from tqdm.notebook import tqdm
-import warnings
-from podcast import backend
 # Import necessary libraries
-from accelerate import Accelerator
 from transformers import BarkModel, AutoProcessor, AutoTokenizer
 import torch
 import json
 import numpy as np
 from parler_tts import ParlerTTSForConditionalGeneration
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 import warnings
 import time
+# from IPython.display import Audio
 warnings.filterwarnings('ignore')
 
 # model_path = "meta-llama/Llama-3.1-70B-Instruct"
 model_path = os.path.join('/home/killfm/projects/text-generation-webui/models', 'Meta-Llama-3.1-8B-Instruct')
 
 
-def poc():
+def poc(inputfp, outputfp):
     # Set up device
     device = "cuda"  # if torch.cuda.is_available() else "cpu"
-
 
     # # # PARLER
     # Load model and tokenizer
@@ -56,16 +52,12 @@ def poc():
     audio_arr = generation.cpu().numpy().squeeze()
     print(f'Audio generated')
 
-    pass
-    # wavfile.write('test.wav', 44100, audio_arr)
-
     # Play audio in notebook
     ipd.Audio(audio_arr, rate=model.config.sampling_rate)
 
-
     # BARK
     voice_preset = "v2/en_speaker_6"
-    sampling_rate = 24000
+    bark_samplerate = 24_000
     device = "cuda"
     processor = AutoProcessor.from_pretrained("suno/bark")
     # model =  model.to_bettertransformer()
@@ -81,45 +73,52 @@ def poc():
     wavfile.write('test3.wav', 24000, speech_output.cpu().numpy().astype(np.float32).squeeze())
 
 
-
-
-def mainmain():
+def mainmain(inputfp, outputfp):
     device = 'cuda'
 
-    with open('./podcast_ready_data.pkl', 'rb') as file:
+    with open(inputfp, 'rb') as file:
         PODCAST_TEXT = pickle.load(file)
+
+    ast.literal_eval(PODCAST_TEXT)  # Proves that it is AST-parseable
     bark_processor = AutoProcessor.from_pretrained("suno/bark")
     bark_model = BarkModel.from_pretrained("suno/bark", torch_dtype=torch.float16).to(device)
-    bark_sampling_rate = 24000
+    bark_sampling_rate = 24_000
 
     parler_model = ParlerTTSForConditionalGeneration.from_pretrained("parler-tts/parler-tts-mini-v1").to(device)
     parler_tokenizer = AutoTokenizer.from_pretrained("parler-tts/parler-tts-mini-v1")
 
-    speaker1_description = """
-    Laura's voice is expressive and dramatic in delivery, speaking at a moderately fast pace with a very close recording that almost has no background noise.
-    """
+    speaker1_description = """Laura's voice is expressive and dramatic in delivery, speaking at a moderately fast pace with a very close recording that almost has no background noise."""
+    speaker1_description = """Laura's voice is expressive and dramatic in delivery, speaking at a moderate fast pace with a very close recording that almost has no background noise."""
+
     generated_segments = []
     sampling_rates = []  # We'll need to keep track of sampling rates for each segment
 
-    def generate_speaker1_audio(text):
+    def generate_speaker1_audio(text) -> tuple:
         """Generate audio using ParlerTTS for Speaker 1"""
         input_ids = parler_tokenizer(speaker1_description, return_tensors="pt").input_ids.to(device)
         prompt_input_ids = parler_tokenizer(text, return_tensors="pt").input_ids.to(device)
-        generation = parler_model.generate(input_ids=input_ids, prompt_input_ids=prompt_input_ids)
+        generation = parler_model.generate(
+            input_ids=input_ids,
+            prompt_input_ids=prompt_input_ids,
+        )
         audio_arr = generation.cpu().numpy().squeeze()
         return audio_arr, parler_model.config.sampling_rate
 
-    def generate_speaker2_audio(text):
-        """Generate audio using Bark for Speaker 2"""
+    def generate_speaker2_audio(text, sample_rate=bark_sampling_rate) -> tuple:
+        """
+        Generate audio using Bark for Speaker 2
+        Dev note:
+        -
+        """
         inputs = bark_processor(text, voice_preset="v2/en_speaker_6").to(device)
         speech_output = bark_model.generate(**inputs, temperature=0.9, semantic_temperature=0.8)
         audio_arr = speech_output[0].cpu().numpy()
-        return audio_arr, bark_sampling_rate
+        return audio_arr, sample_rate
 
-    def numpy_to_audio_segment(audio_arr, sampling_rate):
+    def numpy_to_audio_segment(audio_arr_fp32, sampling_rate):
         """Convert numpy array to AudioSegment"""
         # Convert to 16-bit PCM
-        audio_int16 = (audio_arr * 32767).astype(np.int16)
+        audio_int16 = (audio_arr_fp32 * 32_767).astype(np.int16)
 
         # Create WAV file in memory
         byte_io = io.BytesIO()
@@ -129,11 +128,10 @@ def mainmain():
         # Convert to AudioSegment
         return AudioSegment.from_wav(byte_io)
 
-    import ast
-    ast.literal_eval(PODCAST_TEXT)
+
     final_audio = None
 
-    i=0
+    i = 0
     for speaker, text in tqdm(ast.literal_eval(PODCAST_TEXT), desc="Generating podcast segments", unit="segment"):
         i += 1
         if speaker == "Speaker 1":
@@ -144,21 +142,24 @@ def mainmain():
         print(f'Done processing text: {text:100}')
 
         # Convert to AudioSegment (pydub will handle sample rate conversion automatically)
-        audio_segment = numpy_to_audio_segment(audio_arr, rate)
+        audio_segment_int16 = numpy_to_audio_segment(audio_arr, rate)
 
         # Add to final audio
         if final_audio is None:
-            final_audio = audio_segment
+            final_audio = audio_segment_int16
         else:
-            final_audio += audio_segment
-        if i >= 5:
-            break
-    final_audio.export("_podcast.mp3",
-                       format="mp3",
-                       bitrate="192k",
-                       parameters=["-q:a", "0"])
+            final_audio += audio_segment_int16
+        # if i >= 5:
+        #     break
+    final_audio.export(
+        outputfp,
+        format="mp3",
+        bitrate="192k",
+        parameters=["-q:a", "0"],
+    )
 
     pass
+
 
 if __name__ == '__main__':
     # pdfpath = '/home/killfm/Downloads/Mathematics_of_finance.pdf'
@@ -166,7 +167,10 @@ if __name__ == '__main__':
     # intermediate_file_path = 'extracted_text.txt'
     # output_file_path = output_file = f"clean_2{os.path.basename(pdfpath)}"
     # pklpath = './data.pkl'
+    inputfp = './podcast_ready_data.pkl'
+    outpath = "podcast_long.mp3"
     mainmain(
+        inputfp,
+        outpath,
 
     )
-

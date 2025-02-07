@@ -12,7 +12,7 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
     host, port = args.host, args.port
-    api_url = vllm_util.render_model_api_uri(host, port)
+    api_url = vllm_util.render_models_api_uri(host, port)
     response = vllm_util._get_models_response(host, port)
     j = response.json()
     modelsnamesdicts: List[Dict] = j.get('data')

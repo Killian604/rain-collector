@@ -1,7 +1,6 @@
 """
-Step 1: Pre-process PDF: Use Llama-3.2-1B-Instruct to pre-process the PDF and save it in a .txt file.
-
-
+Step 1: Pre-process PDF: Simplify incoming text.
+Use Llama-3.2-1B-Instruct to pre-process the PDF and save it in a .txt file.
 """
 from accelerate import Accelerator
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -9,17 +8,16 @@ import warnings
 from tqdm import tqdm
 warnings.filterwarnings('ignore')
 import PyPDF2
+from podcast import backend
 from typing import Optional
 import os
+import re
 import torch
-
 import warnings
 
-from podcast import  backend
-
 # DEFAULT_MODEL = os.path.join(os.environ['MYMODELS'], 'Llama-3.2-1B-Instruct')
-DEFAULT_MODEL = os.path.join('../../projects/text-generation-webui/models', 'Llama-3.2-1B-Instruct')
-device = "cuda" if torch.cuda.is_available() else "cpu"
+DEFAULT_MODEL = os.path.join('/home/killfm/projects/text-generation-webui/models', 'Meta-Llama-3.1-8B-Instruct')  # 'Llama-3.2-1B-Instruct'
+device = 'cuda'  # "cuda" if torch.cuda.is_available() else "cpu"
 
 SYS_PROMPT = """
 You are a world class text pre-processor, here is the raw data from a PDF, please parse and return it in a way that is crispy and usable to send to a podcast writer.
@@ -34,14 +32,13 @@ Remember DO NOT START SUMMARIZING THIS, YOU ARE ONLY CLEANING UP THE TEXT AND RE
 
 Be very smart and aggressive with removing details, you will get a running portion of the text and keep returning the processed text.
 
-PLEASE DO NOT ADD MARKDOWN FORMATTING, STOP ADDING SPECIAL CHARACTERS THAT MARKDOWN CAPATILISATION ETC LIKES
+PLEASE DO NOT ADD MARKDOWN FORMATTING, STOP ADDING SPECIAL CHARACTERS THAT MARKDOWN CAPITALISATION ETC LIKES
 
 ALWAYS start your response directly with processed text and NO ACKNOWLEDGEMENTS about my questions ok?
 Here is the text:
 """
 
 warnings.filterwarnings('ignore')
-
 
 
 def main(pdf_path: str, intermediate_file_path, output_file_path):
@@ -70,10 +67,9 @@ def main(pdf_path: str, intermediate_file_path, output_file_path):
 
     # Optional: Save the extracted text to a file
     if extracted_text:
-        output_file = 'extracted_text.txt'
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(extracted_text)
-        print(f"\nExtracted text has been saved to {output_file}")
+        print(f"\nExtracted text has been saved to {intermediate_file_path}")
 
     accelerator = Accelerator()
     model = AutoModelForCausalLM.from_pretrained(
@@ -85,31 +81,25 @@ def main(pdf_path: str, intermediate_file_path, output_file_path):
     tokenizer = AutoTokenizer.from_pretrained(DEFAULT_MODEL, use_safetensors=True)
     model, tokenizer = accelerator.prepare(model, tokenizer)
 
-
     # Read the file
-    INPUT_FILE = "./extracted_text.txt"  # Replace with your file path
-    CHUNK_SIZE = 1000  # Adjust chunk size if needed
+    CHUNK_SIZE = 2_000  # Adjust chunk size if needed
 
-    with open(INPUT_FILE, 'r', encoding='utf-8') as file:
+    with open(intermediate_file_path, 'r', encoding='utf-8') as file:
         text = file.read()
-
 
     # chunks = backend.create_word_bounded_chunks(text, CHUNK_SIZE, SYS_PROMPT, tokenizer, model, device)
     chunks = backend.create_word_bounded_chunks(text, CHUNK_SIZE)
 
-
     # Calculate number of chunks
     num_chunks = (len(text) + CHUNK_SIZE - 1) // CHUNK_SIZE
 
-    # Cell 6: Process the file with ordered output
-    # Create output file name
 
     processed_text = ''
-
     with open(output_file, 'w', encoding='utf-8') as out_file:
         for chunk_num, chunk in enumerate(tqdm(chunks, desc="Processing chunks")):
             # Process chunk and append to complete text
             processed_chunk = backend.process_chunk(chunk, chunk_num, SYS_PROMPT, tokenizer, model, device)
+            processed_chunk = re.sub(r'(\n){2,}', '\n', processed_chunk)
             processed_text += processed_chunk + "\n"
 
             # Write chunk immediately to file
@@ -118,7 +108,7 @@ def main(pdf_path: str, intermediate_file_path, output_file_path):
     num_chunks = len(chunks)
 
     print(f"\nProcessing complete!")
-    print(f"Input file: {INPUT_FILE}")
+    print(f"Input file: {intermediate_file_path}")
     print(f"Output file: {output_file}")
     print(f"Total chunks processed: {num_chunks}")
 
@@ -133,7 +123,7 @@ def main(pdf_path: str, intermediate_file_path, output_file_path):
 if __name__ == '__main__':
     pdfpath = '/home/killfm/Downloads/Mathematics_of_finance.pdf'
     intermediate_file_path = 'extracted_text.txt'
-    output_file_path = output_file = f"clean_{os.path.basename(pdfpath)}"
+    output_file_path = output_file = f"clean_2{os.path.basename(pdfpath)}"
     main(
         pdfpath,
         intermediate_file_path,
