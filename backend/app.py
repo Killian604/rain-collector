@@ -5,7 +5,7 @@ from moviepy.video.io.VideoFileClip import VideoFileClip
 from ply.yacc import token
 from transformers import AutoTokenizer  # from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from uvicorn.config import LOGGING_CONFIG
-from backend.model_server import fastapiapp
+from backend._model_server import fastapiapp
 from pydub import AudioSegment
 # from settings import *
 from typing import Collection, List, Optional

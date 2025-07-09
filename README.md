@@ -8,10 +8,19 @@ Collect your memories and customize your very own personalized AI. Emphasis on p
 
 More instructions TBD
 
+---
+
 # Usage
 
+## Main CLI:
+`python rc --help`
+
+### Gradio apps
 `gradio vllm_gradio_chat_stream.py --watch-dirs ./backend/`
 `gradio `
+
+
+---
 
 # Folders
 

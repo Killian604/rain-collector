@@ -8,7 +8,7 @@ import argparse
 import json
 from typing import Iterable, List
 import requests
-from backend.cliutil import clear_line
+# from backend.cliutil import clear_line
 
 
 def get_streaming_response(response: requests.Response) -> Iterable[List[str]]:
