@@ -1,18 +1,24 @@
+"""
+
+"""
 from colorama import init, Fore, Style
-from moviepy.audio.io.AudioFileClip import AudioFileClip
-from moviepy.editor import AudioFileClip, VideoFileClip
+from moviepy.editor import AudioFileClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
-from ply.yacc import token
-from transformers import AutoTokenizer  # from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoTokenizer, pipeline  # from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from uvicorn.config import LOGGING_CONFIG
 from backend._model_server import fastapiapp
 from pydub import AudioSegment
 # from settings import *
-from typing import Collection, List, Optional
+from typing import List, Optional, Union
+import gradio as gr
+import numpy as np
 import os
-import sys
 import time
 import uvicorn
+
+from backend.util import recursively_search_files
+
+
 # from file_monitor import WatchdogThread, UpdateThread
 # os.environ['USE_FLASH_ATTENTION'] = '1'
 
@@ -67,7 +73,17 @@ def cutaudio(infile, outfile, timestart=0, timeend=-1, force=False):
     return
 
 
-def cutclip(infile, outfile, timestart=0, timeend=-1, force=False):
+def cutclip(infile, outfile, timestart=0, timeend=-1, force=False, verbose: bool = False):
+    """
+    Cut video clip
+    :param infile:
+    :param outfile:
+    :param timestart: secs from beginning to start clip
+    :param timeend: secs from beginning to end clip
+    :param force:
+    :param verbose:
+    :return:
+    """
     if not os.path.isfile(inputmoviefile):
         raise FileNotFoundError(f'File not found: {inputmoviefile=}')
     # if not inputmoviefile.endswith('.mp4'): raise ValueError(f'Bad ext: {infile}. Expects to be an mp4 input')
@@ -80,6 +96,8 @@ def cutclip(infile, outfile, timestart=0, timeend=-1, force=False):
             timeend = clip.duration
         with clip.subclip(timestart, timeend) as subclip:
             subclip.write_videofile(outfile)
+    if verbose:
+        print(f'Clipped cut saved to: {outfile}')
 
 
 # Everything else
@@ -138,25 +156,25 @@ def asr_whisper(mp3path) -> str:
     return text
     # breakpoint()
 
-def recursively_search_files(d) -> List[str]:
-    """
-    :param d: a directory path
-    :return:
-    """
-    result = [os.path.join(dp, f) for dp, dn, filenames in os.walk(d) for f in filenames]
-    return result
 
-def counttokens(inputs: List[str], modelpath: Optional[str] = None):
+def counttokens(inputs: Union[str, List[str]], modelpath: Optional[str] = None, device: str = 'cpu'):
     """
 
     :param inputs:
     :param modelpath:
+    :param device: (str) One of 'cpu', 'auto'
     :return:
     """
     print(f'{type(inputs)=}')
+
+    # Fix typing
+    if isinstance(inputs, str):
+        inputs = [inputs, ]
+
+    # Figure out inputs
     if len(inputs) == 0:
-        raise ValueError(f"Empty inputs: {inputs=}")
-    elif  all([os.path.exists(x) for x in inputs]):
+        raise ValueError(f"Empty input: {inputs=}")
+    elif all([os.path.exists(x) for x in inputs]):  # Case: multiple files or dirs
         input_text= ''
         allfiles = []
         for f in inputs:
@@ -166,7 +184,7 @@ def counttokens(inputs: List[str], modelpath: Optional[str] = None):
             allfiles.extend(allrecursivesbfiles)
         for f in allfiles:
             input_text += ''.join(open(f, 'r').readlines())
-    else:
+    else:  # Case: raw text block
         input_text = ' '.join(inputs)
 
     start = time.perf_counter()
@@ -179,22 +197,19 @@ def counttokens(inputs: List[str], modelpath: Optional[str] = None):
     assert os.path.isdir(model_id), f'Dir not found: {model_id=}'
 
     # Load the tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_id,
-        device_map='cpu',
-    )
+    tokenizer = AutoTokenizer.from_pretrained(model_id, device_map=device)
 
-    inputtext = input_text  #  if len(sys.argv) <= 1 else ' '.join(sys.argv[1:])
-    tokenizer_output = tokenizer(inputtext)
+    # inputtext = input_text  #  if len(sys.argv) <= 1 else ' '.join(sys.argv[1:])
+    tokenizer_output = tokenizer(input_text)
     total_tokens = len(tokenizer_output["input_ids"])
-    print(f'Input text: {inputtext}')
+    print(f'Input text: {input_text}')
     print(f'{tokenizer_output=}')
     print(Style.BRIGHT + Fore.GREEN + f'Number of tokens for input text: {total_tokens - 1}'.rjust(25) + Style.RESET_ALL)
     print(Style.BRIGHT + Fore.GREEN + f'{total_tokens - 1} text tokens generated'.rjust(25) + Style.RESET_ALL)
     print(f'(Total tokens generated: {total_tokens})'.rjust(25))
 
     print(f'\n--- Start of per-word analysis---')
-    for i, word in enumerate(inputtext.split()):
+    for i, word in enumerate(input_text.split()):
         tokenoutput = tokenizer(word)['input_ids']
         tokenoutputtextonly = tokenoutput[1:]
 
@@ -206,7 +221,7 @@ def counttokens(inputs: List[str], modelpath: Optional[str] = None):
 
     print()
     secs_to_process = time.perf_counter() - start
-    print(f'Input text: {inputtext}')
+    print(f'Input text: {input_text}')
     print(Style.BRIGHT + Fore.GREEN + f'Number of tokens for input text: {total_tokens - 1}'.rjust(25) + Style.RESET_ALL)
     print(Style.BRIGHT + Fore.GREEN + f'{total_tokens - 1} text tokens generated'.rjust(25) + Style.RESET_ALL)
     print(f'(Total tokens generated: {total_tokens})'.rjust(25))
@@ -300,4 +315,43 @@ if __name__ == '__main__' and True:
     )
     asr_whisper(
         mp3outpath,
+    )
+
+
+def asr():
+    if gr.NO_RELOAD:
+        transcriber = pipeline("automatic-speech-recognition", model="openai/whisper-base.en", device='cuda')
+
+
+    def transcribe(audio: tuple):
+        """
+
+        :param audio: (tuple (sample rate, numpyarray np.int16
+        :return:
+        """
+        if audio is None:
+            return ''
+        start = time.perf_counter()
+        sr, y = audio
+        print(f'{y.shape=} // {y.dtype=}')
+        # Convert to mono if stereo
+        if y.ndim > 1:
+            y = y.mean(axis=1)
+
+        y = y.astype(np.float32)
+        y /= np.max(np.abs(y))  # Dev note: it divides by it's own loudest value rather than max int16?
+        end = time.perf_counter()
+        print(f'Time to infer: {round(end - start, 1)} secs')
+        return transcriber({"sampling_rate": sr, "raw": y})["text"]
+
+
+    with gr.Blocks() as demo:
+        audio_input = gr.Audio(sources=["microphone"])
+        text_output = gr.Textbox(label="Transcription")
+
+        audio_input.change(fn=transcribe, inputs=[audio_input], outputs=text_output)
+
+    demo.launch(
+        inbrowser=True,
+        server_port=7861,
     )
