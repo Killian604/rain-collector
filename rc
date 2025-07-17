@@ -36,7 +36,26 @@ Available commands:
         # use dispatch pattern to invoke method with same name
         getattr(self, args.command)()
 
+
     # Commands
+    def asr(self):
+        parser = argparse.ArgumentParser(
+            prog=None,
+            usage="""
+Boot ASR server
+    """,
+        )
+        # parser.add_argument('-i', '--input', required=True, help='Required: a path to an mp3 file')
+        # parser.add_argument('-o', '--output', required=True, help='Required: a path to output wav file. ')
+        # parser.add_argument('-f', '--force', required=False, action='store_true', default=False, help='Optional: force overwrite')
+        args = parser.parse_args(sys.argv[2:])
+        app.asr(
+            # args.input,
+            # args.output,
+            # force=args.force,
+        )
+
+
     def counttokens(self):
         parser = argparse.ArgumentParser(
             usage="""
