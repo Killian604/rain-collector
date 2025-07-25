@@ -1,6 +1,7 @@
 """
 
 """
+from scipy.io import wavfile
 from colorama import init, Fore, Style
 from moviepy.editor import AudioFileClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
@@ -9,7 +10,7 @@ from uvicorn.config import LOGGING_CONFIG
 from backend._model_server import fastapiapp
 from pydub import AudioSegment
 # from settings import *
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 import gradio as gr
 import numpy as np
 import os
@@ -21,6 +22,63 @@ from backend.util import recursively_search_files
 
 # from file_monitor import WatchdogThread, UpdateThread
 # os.environ['USE_FLASH_ATTENTION'] = '1'
+
+
+def asr():
+    if gr.NO_RELOAD:
+        transcriber = pipeline("automatic-speech-recognition", model="openai/whisper-base.en", device='cuda')
+
+
+    def transcribe(audio: Tuple[Union[int, float], np.ndarray], verbose: bool = False):
+        """
+
+        :param audio: (tuple (sample rate, numpyarray np.int16))
+        :param verbose: print extra statements to console
+        :return:
+        """
+
+        if audio is None:  # Case: deleting old audio
+            if verbose:
+                print(f'audio is NONE')
+            return ''
+
+        start = time.perf_counter()
+        sr, y = audio
+        if verbose:
+            print(f'{y.shape=} // {y.dtype=}')
+        # Convert to mono if stereo
+        if y.ndim > 1:
+            y = y.mean(axis=1)
+        y = y.astype(np.float32)
+        y /= np.max(np.abs(y))  # Dev note: it divides by it's own loudest value rather than max int16?
+
+        # file_path, sr = audio
+        # Load and possibly process the audio here
+        # Then write back to file
+        # new_path = "processed.wav"
+        # wavfile.write(new_path, sr, y)
+        end = time.perf_counter()
+        print(f'Seconds to infer: {round(end - start, 1)}')
+
+        return transcriber({"sampling_rate": sr, "raw": y})["text"]
+
+
+    with gr.Blocks() as demo:
+        audio_input = gr.Audio(
+            value=None,
+            # sources=["microphone"],
+            type='numpy',
+            label='[Audio Component Label]',
+        )
+        text_output = gr.Textbox(label="Transcription")
+
+        audio_input.change(fn=transcribe, inputs=[audio_input], outputs=text_output)
+
+    demo.launch(
+        server_name='0.0.0.0',
+        inbrowser=True,
+        server_port=7861,
+    )
 
 
 # AV
@@ -317,41 +375,3 @@ if __name__ == '__main__' and True:
         mp3outpath,
     )
 
-
-def asr():
-    if gr.NO_RELOAD:
-        transcriber = pipeline("automatic-speech-recognition", model="openai/whisper-base.en", device='cuda')
-
-
-    def transcribe(audio: tuple):
-        """
-
-        :param audio: (tuple (sample rate, numpyarray np.int16
-        :return:
-        """
-        if audio is None:
-            return ''
-        start = time.perf_counter()
-        sr, y = audio
-        print(f'{y.shape=} // {y.dtype=}')
-        # Convert to mono if stereo
-        if y.ndim > 1:
-            y = y.mean(axis=1)
-
-        y = y.astype(np.float32)
-        y /= np.max(np.abs(y))  # Dev note: it divides by it's own loudest value rather than max int16?
-        end = time.perf_counter()
-        print(f'Time to infer: {round(end - start, 1)} secs')
-        return transcriber({"sampling_rate": sr, "raw": y})["text"]
-
-
-    with gr.Blocks() as demo:
-        audio_input = gr.Audio(sources=["microphone"])
-        text_output = gr.Textbox(label="Transcription")
-
-        audio_input.change(fn=transcribe, inputs=[audio_input], outputs=text_output)
-
-    demo.launch(
-        inbrowser=True,
-        server_port=7861,
-    )

@@ -1,6 +1,6 @@
 #!python
 """
-Do not use % sign
+Do not use % sign in descriptions.
 """
 from backend import app, logging_extra
 from typing import List
@@ -39,36 +39,37 @@ Available commands:
 
     # Commands
     def asr(self):
+        default_port = 7861
         parser = argparse.ArgumentParser(
             prog=None,
-            usage="""
+            usage=f"""
 Boot ASR server
+Default port: {default_port}
     """,
         )
-        # parser.add_argument('-i', '--input', required=True, help='Required: a path to an mp3 file')
-        # parser.add_argument('-o', '--output', required=True, help='Required: a path to output wav file. ')
-        # parser.add_argument('-f', '--force', required=False, action='store_true', default=False, help='Optional: force overwrite')
+        parser.add_argument('-p', '--port', required=False, default=default_port, type=int, help='Optional: specify a port to use')
         args = parser.parse_args(sys.argv[2:])
         app.asr(
-            # args.input,
-            # args.output,
-            # force=args.force,
+
         )
 
 
     def counttokens(self):
         parser = argparse.ArgumentParser(
             usage="""
-Description: count tokens of files
+Description: count tokens of a file for files
+
 Form:
-- python nx counttokens -i [filepath]
+- python nx counttokens -i [file path/dir path] -m [model path]
 
 Examples:
-- python nx counttokens -i music.mp3 -o music.wav
+- python nx counttokens -i /projects/MyProject/                                   -m /models/Meta-LLama-3.1/
+- python nx counttokens -i /projects/MyProject/init.py                            -m /models/Meta-LLama-3.1/
+- python nx counttokens -i /projects/MyProject/init.py /projects/MyProject/app.py -m /models/Meta-LLama-3.1/
 """,
         )
         parser.add_argument('-i', '--input', required=True, type=str, nargs='+', help='Required: ')
-        parser.add_argument('-m', '--model', required=False, help='Optional: ')
+        parser.add_argument('-m', '--model', required=False, help='Optional: specify model path from which the tokenizer will be used')
         args = parser.parse_args(sys.argv[2:])
         app.counttokens(
             args.input,
@@ -111,7 +112,7 @@ Examples:
     """,
         )
         parser.add_argument('-i', '--input', required=True, help='Required: a path to an mp3 file')
-        parser.add_argument('-o', '--output', required=True, help='Required: a path to output wav file. ')
+        parser.add_argument('-o', '--output', required=True, help='Required: a path to output wav file')
         parser.add_argument('-f', '--force', required=False, action='store_true', default=False, help='Optional: force overwrite')
         args = parser.parse_args(sys.argv[2:])
         app.mp4tomp3(
