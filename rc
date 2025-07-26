@@ -11,7 +11,7 @@ import sys
 
 class rc(object):
     """ Custom arg-parsing object that relies on user commands """
-    pass
+
     def __init__(self):
         funcs = [f'> {f}' for f in dir(self) if callable(getattr(self, f)) and '__' not in f]
         funcs_str = '\n'.join(funcs)
@@ -36,7 +36,6 @@ Available commands:
         # use dispatch pattern to invoke method with same name
         getattr(self, args.command)()
 
-
     # Commands
     def asr(self):
         parser = argparse.ArgumentParser(
@@ -54,7 +53,6 @@ Boot ASR server
             # args.output,
             # force=args.force,
         )
-
 
     def counttokens(self):
         parser = argparse.ArgumentParser(
@@ -74,7 +72,6 @@ Examples:
             args.input,
             args.model,
         )
-
 
     def mp3towav(self):
         parser = argparse.ArgumentParser(
@@ -123,7 +120,6 @@ Examples:
 
     def tokens(self):
         return self.counttokens()
-
 
 
 if __name__ == '__main__':

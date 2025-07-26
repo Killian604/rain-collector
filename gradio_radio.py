@@ -3,14 +3,8 @@ For running radio app
 
 Usage: `gradio <ThisFileName>`
 """
-# import rccoqui
-# from rccoqui.TTS import tts
-
-# from rccoqui.TTS.tts.configs.xtts_config import XttsConfig
-# from rccoqui.TTS.tts.models.xtts import Xtts
-# from rccoqui.TTS.api import TTS
 from typing import List, Optional, Tuple
-from backend import gradio_blocks, gradio_util, logging_extra as log, shared, vllm_util
+from backend import gradio_util, logging_extra as log, shared, vllm_util
 from tempfile import TemporaryDirectory
 import gradio as gr
 import numpy as np
