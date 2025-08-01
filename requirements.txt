@@ -18,6 +18,7 @@ hqq
 jinja2
 lm_eval
 markdown
+moviepy
 numba
 numpy
 optimum
@@ -31,6 +32,7 @@ requests
 rich
 safetensors
 scipy
+seaborn
 sentencepiece
 tensorboard
 transformers

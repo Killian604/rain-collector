@@ -83,9 +83,12 @@ cookbook/ is for short scripts that show you how to do stuff
 - `piper`/`piper-tts`: pip package does not exist despite being used in installation instructions. Aimed for Pi4 usage.
 
 _
-
+## ASR
 - To ASR a 4.5h podcast with Whisper Large, it takes about 30 min
   - So it takes about 1 min of runtime per 9 min of audio
+
+
+https://huggingface.co/openai/whisper-large-v3
 
 
 # FAQ
@@ -102,7 +105,7 @@ _
 - A: `pip install flash-attn --no-build-isolation`
 
 _
-
+https://zulko.github.io/moviepy/getting_started/updating_to_v2.html
 
 https://github.com/meta-llama/llama-recipes/tree/main
 
@@ -113,7 +116,7 @@ https://github.com/meta-llama/llama-recipes/tree/main
 - https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-all-titles-in-ns0.gz
 - `gunzip enwiki-latest-all-titles-in-ns0.gz`
 
-e
+
 
  ---
 
