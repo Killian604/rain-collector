@@ -11,7 +11,7 @@ import sys
 
 class rc(object):
     """ Custom arg-parsing object that relies on user commands """
-    pass
+
     def __init__(self):
         funcs = [f'> {f}' for f in dir(self) if callable(getattr(self, f)) and '__' not in f]
         funcs_str = '\n'.join(funcs)
@@ -24,7 +24,6 @@ Available commands:
 {funcs_str}
 
 """,
-            epilog="""""",
         )
         parser.add_argument('command', help='command to run')
         # TODO: low: enumerate potential commands for users in help message
@@ -35,7 +34,6 @@ Available commands:
             exit(1)
         # use dispatch pattern to invoke method with same name
         getattr(self, args.command)()
-
 
     # Commands
     def asr(self):
@@ -48,13 +46,12 @@ Boot ASR server
         # parser.add_argument('-i', '--input', required=True, help='Required: a path to an mp3 file')
         # parser.add_argument('-o', '--output', required=True, help='Required: a path to output wav file. ')
         # parser.add_argument('-f', '--force', required=False, action='store_true', default=False, help='Optional: force overwrite')
-        args = parser.parse_args(sys.argv[2:])
+        # args = parser.parse_args(sys.argv[2:])
         app.asr(
             # args.input,
             # args.output,
             # force=args.force,
         )
-
 
     def counttokens(self):
         parser = argparse.ArgumentParser(
@@ -75,7 +72,6 @@ Examples:
             args.model,
         )
 
-
     def mp3towav(self):
         parser = argparse.ArgumentParser(
             prog=None,
@@ -85,8 +81,7 @@ Form:
 - python nx mp3towav -i [mp3path] -o [wavpath]
 Examples:
 - python nx mp3towav -i music.mp3 -o music.wav
-
-    """,
+""",
         )
         parser.add_argument('-i', '--input', required=True, help='Required: a path to an mp3 file')
         parser.add_argument('-o', '--output', required=True, help='Required: a path to output wav file. ')
@@ -107,8 +102,7 @@ Form:
 - python nx mp4tomp3 -i [mp3path] -o [wavpath]
 Examples:
 - python nx mp4tomp3 -i music.mp3 -o music.wav
-
-    """,
+""",
         )
         parser.add_argument('-i', '--input', required=True, help='Required: a path to an mp3 file')
         parser.add_argument('-o', '--output', required=True, help='Required: a path to output wav file. ')
@@ -123,7 +117,6 @@ Examples:
 
     def tokens(self):
         return self.counttokens()
-
 
 
 if __name__ == '__main__':

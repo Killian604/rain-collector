@@ -6,7 +6,7 @@ from moviepy.editor import AudioFileClip
 from moviepy.video.io.VideoFileClip import VideoFileClip
 from transformers import AutoTokenizer, pipeline  # from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from uvicorn.config import LOGGING_CONFIG
-from backend._model_server import fastapiapp
+#from backend._model_server import fastapiapp
 from pydub import AudioSegment
 # from settings import *
 from typing import List, Optional, Union
@@ -322,7 +322,6 @@ def asr():
     if gr.NO_RELOAD:
         transcriber = pipeline("automatic-speech-recognition", model="openai/whisper-base.en", device='cuda')
 
-
     def transcribe(audio: tuple):
         """
 
@@ -344,12 +343,16 @@ def asr():
         print(f'Time to infer: {round(end - start, 1)} secs')
         return transcriber({"sampling_rate": sr, "raw": y})["text"]
 
-
     with gr.Blocks() as demo:
         audio_input = gr.Audio(sources=["microphone"])
         text_output = gr.Textbox(label="Transcription")
+        with gr.Row():
+            btn_clear_audio = gr.ClearButton(components=[audio_input], value='Clear Audio')
+            btn_clear_all = gr.ClearButton(components=[audio_input, text_output], value='Clear All', variant='primary')
+            btn_clear_text = gr.ClearButton(components=[text_output], value='Clear Text')
 
-        audio_input.change(fn=transcribe, inputs=[audio_input], outputs=text_output)
+        audio_input.input(fn=transcribe, inputs=[audio_input], outputs=text_output)
+
 
     demo.launch(
         inbrowser=True,
